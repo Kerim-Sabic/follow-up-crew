@@ -94,7 +94,7 @@ export function InstagramBatchDialog({
 
           <p className="text-xs text-muted-foreground">
             {queue.length.toLocaleString()} not-contacted leads ready in this batch.
-            {opened.length ? ` ${opened.length} handed out — mark them contacted when you're done.` : ""}
+            {opened.length ? ` ${opened.length} handed out — review them one by one when you're done.` : ""}
           </p>
 
           <div className="flex gap-2">
@@ -110,7 +110,7 @@ export function InstagramBatchDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
           <Button onClick={finish} disabled={queue.length === 0}>
-            <Check />Mark batch contacted
+            <Layers />Review batch
           </Button>
         </DialogFooter>
       </DialogContent>
