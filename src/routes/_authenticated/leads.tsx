@@ -139,7 +139,12 @@ function LeadsPage() {
       </header>
 
       <main className="mx-auto max-w-[1400px] space-y-4 px-5 py-6">
-        <StatsBar leads={leads} profiles={profiles} />
+        <Analytics
+          leads={leads}
+          profiles={profiles}
+          statusFilter={statusFilter}
+          onSelectStatus={setStatusFilter}
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           <input
