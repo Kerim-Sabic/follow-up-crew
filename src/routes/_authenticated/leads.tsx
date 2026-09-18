@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";
 import { STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
+import { SwipeReview, type SwipeDecision } from "@/components/crm/SwipeReview";
+import type { Lead } from "@/lib/crm";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { TableSkeleton, ErrorState } from "@/components/crm/WorkspaceState";
