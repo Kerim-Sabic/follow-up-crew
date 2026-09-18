@@ -15,6 +15,8 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Track outreach, replies and deals with your team in real time.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Landing,
