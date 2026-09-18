@@ -247,6 +247,10 @@ function LeadsPage() {
         )}
       </main>
 
+      {addOpen && user ? (
+        <AddLeadDialog userId={user.id} onClose={() => setAddOpen(false)} />
+      ) : null}
+
       {openLead && user ? (
         <LeadPanel
           lead={openLead}
