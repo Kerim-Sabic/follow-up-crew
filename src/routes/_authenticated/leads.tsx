@@ -185,6 +185,12 @@ function LeadsPage() {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            + Add lead
+          </button>
         </div>
 
         {selected.size > 0 ? (
