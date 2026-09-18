@@ -82,7 +82,9 @@ function LeadsPage() {
       if (!term) return true;
       return (
         lead.username.toLowerCase().includes(term) ||
-        (lead.email ?? "").toLowerCase().includes(term)
+        (lead.email ?? "").toLowerCase().includes(term) ||
+        (lead.match_note ?? "").toLowerCase().includes(term) ||
+        String(lead.number).includes(term)
       );
     });
   }, [leads, search, statusFilter, mineOnly, user?.id]);
