@@ -120,7 +120,8 @@ function LeadsPage() {
       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>{filtered.length.toLocaleString()} results</span><span>Live workspace</span></div>
       {isLoading ? <TableSkeleton /> : error ? <ErrorState onRetry={() => queryClient.invalidateQueries({ queryKey: ["leads"] })} /> : view === "table" ? <LeadTable leads={filtered} ownerName={ownerName} selected={selected} onToggleSelect={(id) => setSelected((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; })} onSelectAll={() => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((lead) => lead.id)))} onOpen={setActiveLead} onStatusChange={(ids, next) => mutation.mutate({ ids, next })} /> : <LeadBoard leads={filtered} ownerName={ownerName} onOpen={setActiveLead} onStatusChange={(ids, next) => mutation.mutate({ ids, next })} />}
     </div>
-    <InstagramBatchDialog open={batchOpen} onOpenChange={setBatchOpen} leads={filtered} onMarkContacted={(ids) => mutation.mutate({ ids, next: "contacted" })} />
+    <InstagramBatchDialog open={batchOpen} onOpenChange={setBatchOpen} leads={filtered} onReview={(batch) => { setBatchOpen(false); setSwipeQueue(batch); setSwipeOpen(true); }} />
+    <SwipeReview open={swipeOpen} onOpenChange={setSwipeOpen} queue={swipeQueue} onFinish={saveDecisions} />
   </div>;
 }
 
