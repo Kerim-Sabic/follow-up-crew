@@ -40,6 +40,7 @@ function LeadsPage() {
   const [sort, setSort] = useState<Sort>("number");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
 
   useEffect(() => { const id = window.setTimeout(() => setDeferredSearch(search.trim().toLowerCase()), 150); return () => window.clearTimeout(id); }, [search]);
   useEffect(() => { localStorage.setItem("crm-view", view); }, [view]);
