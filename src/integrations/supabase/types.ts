@@ -56,42 +56,60 @@ export type Database = {
       leads: {
         Row: {
           created_at: string
+          curation: string | null
           email: string | null
+          evidence: string | null
+          full_name: string | null
           id: string
           instagram_url: string | null
           last_touched_at: string | null
           last_touched_by: string | null
           match_note: string | null
+          niche: string | null
           number: number | null
           owner_id: string | null
+          score: number | null
           status: Database["public"]["Enums"]["lead_status"]
           username: string
+          workspace: Database["public"]["Enums"]["workspace_key"]
         }
         Insert: {
           created_at?: string
+          curation?: string | null
           email?: string | null
+          evidence?: string | null
+          full_name?: string | null
           id?: string
           instagram_url?: string | null
           last_touched_at?: string | null
           last_touched_by?: string | null
           match_note?: string | null
+          niche?: string | null
           number?: number | null
           owner_id?: string | null
+          score?: number | null
           status?: Database["public"]["Enums"]["lead_status"]
           username: string
+          workspace?: Database["public"]["Enums"]["workspace_key"]
         }
         Update: {
           created_at?: string
+          curation?: string | null
           email?: string | null
+          evidence?: string | null
+          full_name?: string | null
           id?: string
           instagram_url?: string | null
           last_touched_at?: string | null
           last_touched_by?: string | null
           match_note?: string | null
+          niche?: string | null
           number?: number | null
           owner_id?: string | null
+          score?: number | null
           status?: Database["public"]["Enums"]["lead_status"]
           username?: string
+          workspace?: Database["public"]["Enums"]["workspace_key"]
         }
         Relationships: [
           {
@@ -137,6 +155,7 @@ export type Database = {
     }
     Enums: {
       lead_status: "not_contacted" | "contacted" | "replied" | "deal" | "dead"
+      workspace_key: "docmesker" | "justin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -265,6 +284,7 @@ export const Constants = {
   public: {
     Enums: {
       lead_status: ["not_contacted", "contacted", "replied", "deal", "dead"],
+      workspace_key: ["docmesker", "justin"],
     },
   },
 } as const
