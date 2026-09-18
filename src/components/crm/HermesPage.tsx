@@ -82,7 +82,7 @@ export function HermesPage() {
         instagram_url: item.instagram_url ?? null,
         match_note: item.why ?? null,
       }));
-    if (fresh.length === 0) return toast.error("Nothing new to add.");
+    if (fresh.length === 0) { toast.error("Nothing new to add."); return; }
     await guard("import", async () => {
       const added = await createLeads(fresh, workspace);
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -92,7 +92,7 @@ export function HermesPage() {
   }
 
   async function improve() {
-    if (uncurated.length === 0) return toast.error("Every lead already has a niche and a note.");
+    if (uncurated.length === 0) { toast.error("Every lead already has a niche and a note."); return; }
     await guard("improve", async () => {
       const payload = uncurated.map((lead: Lead) => ({ username: lead.username, full_name: lead.full_name, niche: lead.niche, note: lead.match_note }));
       const text = await hermesChat(settings, [
