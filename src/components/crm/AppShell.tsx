@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, BarChart3, Bell, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
   LayoutList, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus,
@@ -8,6 +9,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
+import { updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
 import { LeadPanel } from "./LeadPanel";
@@ -16,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 const groups = [
   { label: "Workspace", items: [
-    { to: "/", label: "Home", icon: Home },
+    { to: "/dashboard", label: "Home", icon: Home },
     { to: "/leads", label: "Leads", icon: Users },
     { to: "/outreach", label: "Outreach", icon: Zap },
     { to: "/replies", label: "Replies", icon: Inbox },
@@ -29,6 +31,7 @@ const groups = [
 
 export function AppShell() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   if (!user) return null;
   return <WorkspaceProvider userId={user.id}><ShellContent /></WorkspaceProvider>;
 }
@@ -44,6 +47,10 @@ function ShellContent() {
   const pageTitle = groups.flatMap((group) => group.items).find((item) => item.to === pathname)?.label ?? "Workspace";
   const replied = leads.filter((lead) => lead.status === "replied").length;
   const followups = leads.filter((lead) => lead.status === "contacted" && lead.last_touched_at && Date.now() - new Date(lead.last_touched_at).getTime() > 2 * 86400000).length;
+  const statusMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
+  });
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -93,6 +100,6 @@ function ShellContent() {
     </div>
     <CommandMenu />
     {addLeadOpen && user ? <AddLeadDialog userId={user.id} onClose={() => setAddLeadOpen(false)} /> : null}
-    {activeLead && user ? <LeadPanel lead={activeLead} userId={user.id} ownerName={(id) => id === user.id ? "You" : profiles.find((item) => item.id === id)?.display_name ?? "Unassigned"} onClose={() => setActiveLead(null)} onStatusChange={async () => {}} /> : null}
+    {activeLead && user ? <LeadPanel lead={activeLead} userId={user.id} ownerName={(id) => id === user.id ? "You" : profiles.find((item) => item.id === id)?.display_name ?? "Unassigned"} onClose={() => setActiveLead(null)} onStatusChange={(ids, status) => statusMutation.mutate({ ids, status })} /> : null}
   </div>;
 }
