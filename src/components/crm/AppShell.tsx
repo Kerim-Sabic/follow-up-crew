@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, BarChart3, Bell, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
+  Activity, BarChart3, Bell, Bot, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
   Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus,
   Search, Settings, Users, Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
-import { updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
 import { LeadPanel } from "./LeadPanel";
@@ -26,7 +26,10 @@ const groups = [
     { to: "/pipeline", label: "Pipeline", icon: Columns3 },
   ]},
   { label: "Insights", items: [{ to: "/analytics", label: "Analytics", icon: BarChart3 }] },
-  { label: "Library", items: [{ to: "/templates", label: "Templates", icon: MessageSquareText }] },
+  { label: "Library", items: [
+    { to: "/templates", label: "Templates", icon: MessageSquareText },
+    { to: "/hermes", label: "Hermes AI", icon: Bot },
+  ] },
 ];
 
 export function AppShell() {
