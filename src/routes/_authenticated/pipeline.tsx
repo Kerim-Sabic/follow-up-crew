@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { PipelinePage } from "@/components/crm/WorkspacePages";
+export const Route = createFileRoute("/_authenticated/pipeline")({ head: () => ({ meta: [{ title: "Pipeline — Outreach CRM" }, { name: "description", content: "Move prospects through the outreach pipeline." }, { property: "og:title", content: "Pipeline — Outreach CRM" }, { property: "og:description", content: "Move prospects through the outreach pipeline." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: PipelinePage });

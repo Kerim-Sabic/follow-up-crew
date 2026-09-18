@@ -17,6 +17,8 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Sign in to your team's shared outreach tracker." },
       { property: "og:title", content: "Sign in — Outreach CRM" },
       { property: "og:description", content: "Sign in to your team's shared outreach tracker." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthPage,
@@ -34,7 +36,7 @@ function AuthPage() {
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/leads", replace: true });
+    if (user) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
 
   async function handleSubmit(event: React.FormEvent) {

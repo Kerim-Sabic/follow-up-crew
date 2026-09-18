@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { SettingsPage } from "@/components/crm/WorkspacePages";
+export const Route = createFileRoute("/_authenticated/settings")({ head: () => ({ meta: [{ title: "Settings — Outreach CRM" }, { name: "description", content: "Manage your Outreach CRM workspace preferences." }, { property: "og:title", content: "Settings — Outreach CRM" }, { property: "og:description", content: "Manage your Outreach CRM workspace preferences." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: SettingsPage });

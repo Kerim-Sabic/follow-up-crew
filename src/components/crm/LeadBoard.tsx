@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { STATUSES, type Lead, type LeadStatus } from "@/lib/crm";
 import { cn } from "@/lib/utils";
+import { LeadAvatar } from "./LeadAvatar";
+import { StatusSelect } from "./StatusSelect";
+import { formatWhen } from "@/lib/crm";
 
 const VISIBLE = 40;
 
@@ -36,7 +39,7 @@ export function LeadBoard({
               if (id) onStatusChange([id], status.value);
             }}
             className={cn(
-              "flex max-h-[62vh] flex-col rounded-xl border border-border bg-card shadow-panel transition-colors",
+              "flex max-h-[calc(100vh-190px)] min-h-[480px] flex-col rounded-lg border border-border bg-secondary/30 transition-colors",
               dragOver === status.value && "border-primary/60 bg-accent/50",
             )}
           >
@@ -52,20 +55,18 @@ export function LeadBoard({
 
             <div className="flex-1 space-y-2 overflow-auto p-2">
               {columnLeads.slice(0, VISIBLE).map((lead) => (
-                <article
+                 <article
                   key={lead.id}
                   draggable
                   onDragStart={(event) => event.dataTransfer.setData("text/plain", lead.id)}
                   onClick={() => onOpen(lead)}
-                  className="cursor-grab rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:border-primary/40 active:cursor-grabbing"
+                   className="cursor-grab rounded-lg border border-border bg-card px-3 py-3 shadow-sm transition-colors hover:border-input active:cursor-grabbing"
+                   tabIndex={0}
+                   onKeyDown={(event) => { if (event.key === "Enter") onOpen(lead); }}
                 >
-                  <p className="truncate text-sm font-medium text-foreground">{lead.username}</p>
-                  <p className="truncate text-xs text-muted-foreground">{lead.email ?? "—"}</p>
-                  {lead.owner_id ? (
-                    <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
-                      {ownerName(lead.owner_id)}
-                    </p>
-                  ) : null}
+                   <div className="flex items-center gap-2.5"><LeadAvatar username={lead.username} size="sm" /><div className="min-w-0"><p className="truncate text-[13px] font-medium text-foreground">@{lead.username.replace(/^@/, "")}</p><p className="truncate text-[11px] text-muted-foreground">{lead.email ?? "Instagram"}</p></div></div>
+                   <div className="mt-3 flex items-center justify-between gap-2" onClick={(event) => event.stopPropagation()}><StatusSelect value={lead.status} onChange={(next) => onStatusChange([lead.id], next)} /><span className="text-[11px] text-muted-foreground">{formatWhen(lead.last_touched_at)}</span></div>
+                   <p className="mt-2 truncate border-t border-border pt-2 text-[11px] text-muted-foreground">{ownerName(lead.owner_id)}</p>
                 </article>
               ))}
               {columnLeads.length > VISIBLE ? (

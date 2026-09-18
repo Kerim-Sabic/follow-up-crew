@@ -1,5 +1,7 @@
 import { STATUSES, statusMeta, type LeadStatus } from "@/lib/crm";
 import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function StatusSelect({
   value,
@@ -12,25 +14,20 @@ export function StatusSelect({
 }) {
   const meta = statusMeta(value);
   return (
-    <div className={cn("relative inline-flex", className)}>
-      <select
+    <Select
         value={value}
-        onChange={(event) => onChange(event.target.value as LeadStatus)}
-        onClick={(event) => event.stopPropagation()}
-        className={cn(
-          "appearance-none rounded-full px-3 py-1 pr-7 text-[11px] font-semibold uppercase tracking-wide outline-none transition-shadow focus:ring-2 focus:ring-ring/40",
-          meta.className,
-        )}
+        onValueChange={(next) => onChange(next as LeadStatus)}
       >
+      <SelectTrigger onClick={(event) => event.stopPropagation()} className={cn("h-7 w-auto min-w-28 gap-1 rounded-full border-0 px-2.5 text-xs font-medium shadow-none [&>svg]:hidden", meta.className, className)}>
+        <span className={cn("size-1.5 rounded-full", meta.dot)} />
+        <SelectValue />
+        <ChevronDown className="size-3 opacity-60" />
+      </SelectTrigger>
+      <SelectContent>
         {STATUSES.map((status) => (
-          <option key={status.value} value={status.value}>
-            {status.label}
-          </option>
+          <SelectItem key={status.value} value={status.value}><span className="flex items-center gap-2"><span className={cn("size-1.5 rounded-full", status.dot)} />{status.label}</span></SelectItem>
         ))}
-      </select>
-      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] opacity-60">
-        ▼
-      </span>
-    </div>
+      </SelectContent>
+    </Select>
   );
 }

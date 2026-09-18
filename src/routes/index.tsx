@@ -15,6 +15,8 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Track outreach, replies and deals with your team in real time.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Landing,
@@ -39,7 +41,7 @@ function Landing() {
 
         <div className="mt-10 flex flex-wrap items-center gap-3">
           <Link
-            to={user ? "/leads" : "/auth"}
+            to={user ? "/dashboard" : "/auth"}
             className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             {loading ? "Loading…" : user ? "Open your leads" : "Sign in to get started"}

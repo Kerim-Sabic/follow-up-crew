@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { RepliesPage } from "@/components/crm/WorkspacePages";
+export const Route = createFileRoute("/_authenticated/replies")({ head: () => ({ meta: [{ title: "Replies — Outreach CRM" }, { name: "description", content: "Review and progress lead replies." }, { property: "og:title", content: "Replies — Outreach CRM" }, { property: "og:description", content: "Review and progress lead replies." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: RepliesPage });
