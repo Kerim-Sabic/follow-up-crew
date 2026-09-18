@@ -145,7 +145,7 @@ function LeadsPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search username or email…"
+            placeholder="Search username, email, note or #…"
             className="h-10 min-w-56 flex-1 rounded-lg border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/70 focus:ring-2 focus:ring-ring/40"
           />
           <select
