@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Columns3, Download, Filter, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
+import { Columns3, Download, Filter, Instagram, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";
-import { STATUSES, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { TableSkeleton, ErrorState } from "@/components/crm/WorkspaceState";
@@ -39,6 +40,7 @@ function LeadsPage() {
   const [sort, setSort] = useState<Sort>("number");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
 
   useEffect(() => { const id = window.setTimeout(() => setDeferredSearch(search.trim().toLowerCase()), 150); return () => window.clearTimeout(id); }, [search]);
   useEffect(() => { localStorage.setItem("crm-view", view); }, [view]);
@@ -70,11 +72,19 @@ function LeadsPage() {
     const csv = ["username,email,status", ...rows.map((lead) => `"${lead.username}","${lead.email ?? ""}","${lead.status}"`)].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "selected-leads.csv"; anchor.click(); URL.revokeObjectURL(url);
   };
+  const openNextInstagram = (count: number) => {
+    const queue = filtered.filter((lead) => lead.status === "not_contacted").slice(0, count);
+    if (queue.length === 0) { toast.info("No not-contacted leads left here."); return; }
+    let blocked = 0;
+    queue.forEach((lead) => { if (!window.open(instagramUrl(lead), "_blank", "noopener,noreferrer")) blocked += 1; });
+    if (blocked > 0) toast.warning(`${blocked} tabs were blocked — allow pop-ups for this site.`);
+    mutation.mutate({ ids: queue.map((lead) => lead.id), next: "contacted" });
+  };
   const activeFilters = Number(status !== "all") + Number(owner !== "all") + Number(hasEmail !== "all");
 
   return <div className="px-4 py-5 lg:px-6">
     <div className="mx-auto max-w-[1800px]">
-      <header className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-baseline gap-2"><h1 className="text-2xl font-semibold">Leads</h1><span className="text-sm tabular-nums text-muted-foreground">{leads.length.toLocaleString()} total</span></div><p className="mt-1 text-sm text-muted-foreground">Manage, qualify and contact prospects.</p></div><div className="flex gap-2"><Button variant="outline"><Download />Import</Button><Button onClick={() => setAddLeadOpen(true)}><Plus />Add lead</Button></div></header>
+      <header className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-baseline gap-2"><h1 className="text-2xl font-semibold">Leads</h1><span className="text-sm tabular-nums text-muted-foreground">{leads.length.toLocaleString()} total</span></div><p className="mt-1 text-sm text-muted-foreground">Manage, qualify and contact prospects.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => openNextInstagram(10)}><Instagram />Open next 10</Button><Button variant="outline" onClick={() => openNextInstagram(20)}>Open next 20</Button><Button variant="outline" onClick={() => setBatchOpen(true)}><Download />Daily batch</Button><Button onClick={() => setAddLeadOpen(true)}><Plus />Add lead</Button></div></header>
 
       <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-5">{STATUSES.map((item) => <button key={item.value} onClick={() => setStatus(status === item.value ? "all" : item.value)} className={cn("flex min-w-0 items-center justify-between gap-2 border-r border-border px-3 py-2.5 text-left last:border-r-0 hover:bg-secondary/60", status === item.value && "bg-accent") }><span className="flex min-w-0 items-center gap-2"><span className={cn("size-2 shrink-0 rounded-full", item.dot)} /><span className="truncate text-xs font-medium">{item.label}</span></span><span className="text-xs font-semibold tabular-nums">{counts[item.value].toLocaleString()}</span></button>)}</div>
 
@@ -92,6 +102,7 @@ function LeadsPage() {
       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>{filtered.length.toLocaleString()} results</span><span>Live workspace</span></div>
       {isLoading ? <TableSkeleton /> : error ? <ErrorState onRetry={() => queryClient.invalidateQueries({ queryKey: ["leads"] })} /> : view === "table" ? <LeadTable leads={filtered} ownerName={ownerName} selected={selected} onToggleSelect={(id) => setSelected((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; })} onSelectAll={() => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((lead) => lead.id)))} onOpen={setActiveLead} onStatusChange={(ids, next) => mutation.mutate({ ids, next })} /> : <LeadBoard leads={filtered} ownerName={ownerName} onOpen={setActiveLead} onStatusChange={(ids, next) => mutation.mutate({ ids, next })} />}
     </div>
+    <InstagramBatchDialog open={batchOpen} onOpenChange={setBatchOpen} leads={filtered} onMarkContacted={(ids) => mutation.mutate({ ids, next: "contacted" })} />
   </div>;
 }
 

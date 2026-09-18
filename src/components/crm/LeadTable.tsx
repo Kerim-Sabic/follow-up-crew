@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ExternalLink, Mail, MessageSquarePlus, MoreHorizontal } from "lucide-react";
-import { formatWhen, type Lead, type LeadStatus } from "@/lib/crm";
+import { ExternalLink, Instagram, Mail, MessageSquarePlus } from "lucide-react";
+import { formatWhen, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
 import { StatusSelect } from "./StatusSelect";
 import { LeadAvatar } from "./LeadAvatar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -90,7 +90,8 @@ export function LeadTable({
                   </p>
                   <div className="flex items-center justify-end gap-0.5">
                     <span className="text-xs text-muted-foreground group-hover:hidden">{lead.status === "not_contacted" ? "Contact" : lead.status === "contacted" ? "Follow up" : "Review"}</span>
-                    <div className="hidden items-center group-hover:flex"><Button variant="ghost" size="icon" className="size-7" title="Open lead" onClick={(event) => { event.stopPropagation(); onOpen(lead); }}><ExternalLink /></Button>{lead.email ? <Button variant="ghost" size="icon" className="size-7" title="Email" asChild><a href={`mailto:${lead.email}`} onClick={(event) => event.stopPropagation()}><Mail /></a></Button> : null}<Button variant="ghost" size="icon" className="size-7" title="Add note" onClick={(event) => { event.stopPropagation(); onOpen(lead); }}><MessageSquarePlus /></Button><Button variant="ghost" size="icon" className="size-7" title="More actions"><MoreHorizontal /></Button></div>
+                    <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" title={`Open @${lead.username.replace(/^@/, "")} on Instagram`} asChild><a href={instagramUrl(lead)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}><Instagram /></a></Button>
+                    <div className="hidden items-center group-hover:flex"><Button variant="ghost" size="icon" className="size-7" title="Open lead" onClick={(event) => { event.stopPropagation(); onOpen(lead); }}><ExternalLink /></Button>{lead.email ? <Button variant="ghost" size="icon" className="size-7" title="Email" asChild><a href={`mailto:${lead.email}`} onClick={(event) => event.stopPropagation()}><Mail /></a></Button> : null}<Button variant="ghost" size="icon" className="size-7" title="Add note" onClick={(event) => { event.stopPropagation(); onOpen(lead); }}><MessageSquarePlus /></Button></div>
                   </div>
                 </div>
               );
