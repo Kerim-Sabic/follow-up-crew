@@ -73,12 +73,26 @@ function LeadsPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "selected-leads.csv"; anchor.click(); URL.revokeObjectURL(url);
   };
   const openNextInstagram = (count: number) => {
-    const queue = filtered.filter((lead) => lead.status === "not_contacted").slice(0, count);
-    if (queue.length === 0) { toast.info("No not-contacted leads left here."); return; }
+    const seen = new Set<string>(JSON.parse(localStorage.getItem("crm.opened-today") ?? "[]") as string[]);
+    const queue = filtered
+      .filter((lead) => lead.status === "not_contacted" && !seen.has(lead.id))
+      .slice(0, count);
+    if (queue.length === 0) { toast.info("No fresh not-contacted leads left in this view."); return; }
     let blocked = 0;
     queue.forEach((lead) => { if (!window.open(instagramUrl(lead), "_blank", "noopener,noreferrer")) blocked += 1; });
-    if (blocked > 0) toast.warning(`${blocked} tabs were blocked — allow pop-ups for this site.`);
-    mutation.mutate({ ids: queue.map((lead) => lead.id), next: "contacted" });
+    queue.forEach((lead) => seen.add(lead.id));
+    localStorage.setItem("crm.opened-today", JSON.stringify([...seen].slice(-500)));
+    if (blocked > 0) toast.warning(`${blocked} of ${queue.length} tabs were blocked — allow pop-ups for this site.`);
+    else toast.success(`Opened ${queue.length} profiles — swipe to record what you did.`);
+    setSwipeQueue(queue);
+    setSwipeOpen(true);
+  };
+  const saveDecisions = (decisions: SwipeDecision[]) => {
+    const contacted = decisions.filter((item) => item.status === "contacted").map((item) => item.lead.id);
+    const dead = decisions.filter((item) => item.status === "dead").map((item) => item.lead.id);
+    if (contacted.length) mutation.mutate({ ids: contacted, next: "contacted" });
+    if (dead.length) mutation.mutate({ ids: dead, next: "dead" });
+    if (!contacted.length && !dead.length) toast.info("Nothing changed — those leads stay untouched.");
   };
   const activeFilters = Number(status !== "all") + Number(owner !== "all") + Number(hasEmail !== "all");
 
