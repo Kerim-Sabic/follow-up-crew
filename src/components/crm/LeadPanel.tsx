@@ -50,11 +50,11 @@ export function LeadPanel({
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div
-        className="absolute inset-0 bg-foreground/20 backdrop-blur-[1px]"
+        className="absolute inset-0 animate-in fade-in bg-foreground/20 backdrop-blur-[1px] duration-200"
         onClick={onClose}
         aria-hidden
       />
-      <aside className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-panel">
+      <aside className="relative flex h-full w-full max-w-md animate-in flex-col border-l border-border bg-card shadow-panel duration-300 slide-in-from-right">
         <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div className="min-w-0">
             <p className="truncate font-display text-lg text-foreground">{lead.username}</p>
