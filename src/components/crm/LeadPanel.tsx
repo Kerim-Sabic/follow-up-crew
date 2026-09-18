@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Copy, ExternalLink, Mail, MessageSquare, StickyNote, UserRound, Clock3 } from "lucide-react";
 import {
   addNote,
   claimLead,
@@ -10,6 +11,11 @@ import {
   type LeadStatus,
 } from "@/lib/crm";
 import { StatusSelect } from "./StatusSelect";
+import { LeadAvatar } from "./LeadAvatar";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function LeadPanel({
   lead,
@@ -48,86 +54,51 @@ export function LeadPanel({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div
-        className="absolute inset-0 animate-in fade-in bg-foreground/20 backdrop-blur-[1px] duration-200"
-        onClick={onClose}
-        aria-hidden
-      />
-      <aside className="relative flex h-full w-full max-w-md animate-in flex-col border-l border-border bg-card shadow-panel duration-300 slide-in-from-right">
-        <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-          <div className="min-w-0">
-            <p className="truncate font-display text-lg text-foreground">{lead.username}</p>
-            <p className="text-xs text-muted-foreground">Lead #{lead.number ?? "—"}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-secondary"
-          >
-            Close
-          </button>
-        </header>
-
-        <div className="flex-1 space-y-5 overflow-auto px-5 py-5">
-          <div className="flex flex-wrap items-center gap-2">
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent className="flex w-full max-w-[580px] flex-col gap-0 p-0 sm:max-w-[580px]">
+        <SheetHeader className="border-b border-border px-5 py-4 pr-12 text-left">
+          <div className="flex items-center gap-3"><LeadAvatar username={lead.username} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-base">@{lead.username.replace(/^@/, "")}</SheetTitle><SheetDescription>Instagram · Lead #{lead.number ?? "—"}</SheetDescription></div></div>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <StatusSelect
               value={lead.status}
               onChange={(status) => onStatusChange([lead.id], status)}
             />
-            <button
+            <Button variant="outline" size="sm"
               onClick={() => claimMutation.mutate(lead.owner_id === userId ? null : userId)}
-              className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:bg-secondary"
             >
               {lead.owner_id === userId ? "Release" : "Claim"}
-            </button>
+            </Button>
+            {lead.email ? <Button variant="outline" size="sm" asChild><a href={`mailto:${lead.email}`}><Mail />Email</a></Button> : null}
+            {lead.instagram_url ? <Button variant="outline" size="sm" asChild><a href={lead.instagram_url} target="_blank" rel="noreferrer"><ExternalLink />Instagram</a></Button> : null}
           </div>
+        </SheetHeader>
 
-          <dl className="space-y-3 text-sm">
-            <Row label="Owner" value={ownerName(lead.owner_id)} />
-            <Row label="Last update" value={formatWhen(lead.last_touched_at)} />
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Email
-              </dt>
-              <dd className="mt-1 flex items-center gap-2">
-                <span className="truncate text-foreground">{lead.email ?? "—"}</span>
-                {lead.email ? (
-                  <button
+        <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="h-11 w-full justify-start rounded-none border-b border-border bg-card px-5 py-0">
+            <TabsTrigger value="overview" className="h-11 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:shadow-none">Overview</TabsTrigger>
+            <TabsTrigger value="activity" className="h-11 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:shadow-none">Activity</TabsTrigger>
+            <TabsTrigger value="notes" className="h-11 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:shadow-none">Notes</TabsTrigger>
+          </TabsList>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <TabsContent value="overview" className="mt-0 space-y-6">
+              <section><h3 className="mb-3 text-xs font-semibold">Lead overview</h3><dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <Row label="Owner" value={ownerName(lead.owner_id)} />
+                <Row label="Last touch" value={formatWhen(lead.last_touched_at)} />
+                <div><dt className="text-xs text-muted-foreground">Email</dt><dd className="mt-1 flex min-w-0 items-center gap-1"><span className="truncate text-[13px]">{lead.email ?? "Not available"}</span>{lead.email ? <Button variant="ghost" size="icon" className="size-7" aria-label="Copy email"
                     onClick={() => {
                       navigator.clipboard.writeText(lead.email ?? "");
                       toast.success("Email copied");
                     }}
-                    className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-secondary"
-                  >
-                    Copy
-                  </button>
-                ) : null}
-              </dd>
-            </div>
-            {lead.instagram_url ? (
-              <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Instagram
-                </dt>
-                <dd className="mt-1">
-                  <a
-                    href={lead.instagram_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary underline underline-offset-4"
-                  >
-                    Open profile ↗
-                  </a>
-                </dd>
-              </div>
-            ) : null}
-            {lead.match_note ? <Row label="Source note" value={lead.match_note} /> : null}
-          </dl>
-
-          <div>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Notes & replies
-            </h3>
+                  ><Copy /></Button> : null}</dd></div>
+                <Row label="Source" value="Instagram import" />
+                <Row label="Date added" value={new Date(lead.created_at).toLocaleDateString()} />
+              </dl></section>
+              {lead.match_note ? <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Why this lead is interesting</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{lead.match_note}</p></section> : null}
+              <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Next action</h3><div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-secondary/40 p-3"><span className="flex size-8 items-center justify-center rounded-md bg-card text-primary"><MessageSquare className="size-4" /></span><div className="flex-1"><p className="text-sm font-medium">{lead.status === "not_contacted" ? "Start outreach" : lead.status === "contacted" ? "Follow up" : "Review conversation"}</p><p className="text-xs text-muted-foreground">Keep the relationship moving.</p></div></div></section>
+            </TabsContent>
+            <TabsContent value="activity" className="mt-0"><div className="space-y-5 border-l border-border pl-5"><Timeline icon={<Clock3 />} title={lead.last_touched_at ? `Stage updated to ${lead.status.replace("_", " ")}` : "Lead added to workspace"} when={formatWhen(lead.last_touched_at ?? lead.created_at)} /><Timeline icon={<UserRound />} title={lead.owner_id ? `Assigned to ${ownerName(lead.owner_id)}` : "Currently unassigned"} when={formatWhen(lead.created_at)} /></div></TabsContent>
+            <TabsContent value="notes" className="mt-0">
+            <h3 className="text-xs font-semibold">Notes & replies</h3>
             <form
               className="mt-2 space-y-2"
               onSubmit={(event) => {
@@ -139,21 +110,21 @@ export function LeadPanel({
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 rows={3}
-                placeholder="What did they say?"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:ring-2 focus:ring-ring/40"
+                placeholder="Add context about this lead…"
+                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/30"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={!draft.trim() || noteMutation.isPending}
-                className="h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                Add note
-              </button>
+                <StickyNote />{noteMutation.isPending ? "Adding…" : "Add note"}
+              </Button>
             </form>
 
             <ul className="mt-4 space-y-3">
+              {notes.isLoading ? <><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></> : null}
               {(notes.data ?? []).map((note) => (
-                <li key={note.id} className="rounded-lg border border-border bg-background p-3">
+                <li key={note.id} className="rounded-lg border border-border bg-secondary/35 p-3">
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span className="font-semibold text-foreground">
                       {ownerName(note.author_id)}
@@ -167,20 +138,25 @@ export function LeadPanel({
                 <li className="text-sm text-muted-foreground">No notes yet.</li>
               ) : null}
             </ul>
+            </TabsContent>
           </div>
-        </div>
-      </aside>
-    </div>
+        </Tabs>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <dt className="text-xs text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-1 text-foreground">{value}</dd>
+      <dd className="mt-1 text-[13px] text-foreground">{value}</dd>
     </div>
   );
+}
+
+function Timeline({ icon, title, when }: { icon: React.ReactNode; title: string; when: string }) {
+  return <div className="relative"><span className="absolute -left-8 flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground [&>svg]:size-3">{icon}</span><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-xs text-muted-foreground">{when}</p></div>;
 }

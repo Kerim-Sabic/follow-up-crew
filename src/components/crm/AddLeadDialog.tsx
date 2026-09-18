@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { STATUSES, createLead, type LeadStatus } from "@/lib/crm";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -29,20 +31,9 @@ export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: ()
     "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/70 focus:ring-2 focus:ring-ring/40";
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-foreground/30 px-4 py-16 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="font-display text-lg tracking-tight text-foreground">New lead</h2>
-            <p className="text-xs text-muted-foreground">Add someone to the pipeline.</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Close
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogHeader><DialogTitle>Add lead</DialogTitle><DialogDescription>Add a prospect with only the details you have now.</DialogDescription></DialogHeader>
 
         <form
           className="mt-4 space-y-3"
@@ -117,15 +108,14 @@ export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: ()
             />
           </div>
 
-          <button
+          <DialogFooter><Button
             type="submit"
             disabled={mutation.isPending}
-            className="h-10 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
           >
             {mutation.isPending ? "Adding…" : "Add lead"}
-          </button>
+          </Button></DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
