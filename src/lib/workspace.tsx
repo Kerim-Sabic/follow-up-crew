@@ -1,9 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchLeads, fetchProfiles, type Lead, type Profile } from "@/lib/crm";
+import { fetchLeads, fetchProfiles, WORKSPACES, type Lead, type Profile, type Workspace } from "@/lib/crm";
+
+const STORAGE_KEY = "crm.workspace";
 
 type WorkspaceValue = {
+  workspace: Workspace;
+  setWorkspace: (workspace: Workspace) => void;
+  workspaceLabel: string;
   leads: Lead[];
   profiles: Profile[];
   isLoading: boolean;
@@ -21,11 +26,23 @@ const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
 export function WorkspaceProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const queryClient = useQueryClient();
-  const leadsQuery = useQuery({ queryKey: ["leads"], queryFn: fetchLeads });
+  const [workspace, setWorkspaceState] = useState<Workspace>("docmesker");
+  const leadsQuery = useQuery({ queryKey: ["leads", workspace], queryFn: () => fetchLeads(workspace) });
   const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(STORAGE_KEY) as Workspace | null;
+    if (stored && WORKSPACES.some((item) => item.value === stored)) setWorkspaceState(stored);
+  }, []);
+
+  function setWorkspace(next: Workspace) {
+    setWorkspaceState(next);
+    setActiveLead(null);
+    window.localStorage.setItem(STORAGE_KEY, next);
+  }
 
   useEffect(() => {
     const channel = supabase
@@ -57,6 +74,9 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   const leads = useMemo(() => leadsQuery.data ?? [], [leadsQuery.data]);
   const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data]);
   const value = useMemo<WorkspaceValue>(() => ({
+    workspace,
+    setWorkspace,
+    workspaceLabel: WORKSPACES.find((item) => item.value === workspace)?.label ?? "Workspace",
     leads,
     profiles,
     isLoading: leadsQuery.isLoading || profilesQuery.isLoading,
@@ -72,7 +92,8 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
     setCommandOpen,
     activeLead,
     setActiveLead,
-  }), [activeLead, addLeadOpen, commandOpen, leads, leadsQuery.error, leadsQuery.isLoading, profiles, profilesQuery.error, profilesQuery.isLoading, userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [activeLead, addLeadOpen, commandOpen, leads, leadsQuery.error, leadsQuery.isLoading, profiles, profilesQuery.error, profilesQuery.isLoading, userId, workspace]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
