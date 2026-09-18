@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, Instagram, Check } from "lucide-react";
+import { Download, Instagram, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
