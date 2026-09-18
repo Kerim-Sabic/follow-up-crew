@@ -12,7 +12,7 @@ import {
   type Lead,
   type LeadStatus,
 } from "@/lib/crm";
-import { StatsBar } from "@/components/crm/StatsBar";
+import { Analytics } from "@/components/crm/Analytics";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { LeadPanel } from "@/components/crm/LeadPanel";
@@ -139,7 +139,12 @@ function LeadsPage() {
       </header>
 
       <main className="mx-auto max-w-[1400px] space-y-4 px-5 py-6">
-        <StatsBar leads={leads} profiles={profiles} />
+        <Analytics
+          leads={leads}
+          profiles={profiles}
+          statusFilter={statusFilter}
+          onSelectStatus={setStatusFilter}
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           <input
