@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { STATUSES, createLead, type LeadStatus } from "@/lib/crm";
+import { useWorkspace } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { workspace } = useWorkspace();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -18,6 +20,7 @@ export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: ()
       createLead(
         { username, email, instagram_url: instagram, match_note: note, status },
         userId,
+        workspace,
       ),
     onSuccess: (lead) => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });

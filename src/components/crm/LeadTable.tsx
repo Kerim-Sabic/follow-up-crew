@@ -75,9 +75,9 @@ export function LeadTable({
                   />
                   <div className="flex min-w-0 items-center gap-2.5">
                     <LeadAvatar username={lead.username} />
-                    <div className="min-w-0"><p className="truncate text-[13px] font-medium text-foreground">@{lead.username.replace(/^@/, "")}</p><p className="truncate text-[11px] text-muted-foreground">Lead #{lead.number ?? "—"}</p></div>
+                    <div className="min-w-0"><p className="truncate text-[13px] font-medium text-foreground">@{lead.username.replace(/^@/, "")}</p><p className="truncate text-[11px] text-muted-foreground">{lead.full_name ?? `Lead #${lead.number ?? "—"}`}</p></div>
                   </div>
-                  <div className="min-w-0"><p className="truncate text-[13px] text-foreground">{lead.email ?? "No email"}</p><p className="truncate text-[11px] text-muted-foreground">Instagram</p></div>
+                  <div className="min-w-0"><p className="truncate text-[13px] text-foreground">{lead.email ?? "No email"}</p><p className="truncate text-[11px] text-muted-foreground">{lead.niche ? `${lead.niche}${lead.score !== null && lead.score !== undefined ? ` · score ${lead.score}` : ""}` : "Instagram"}</p></div>
                   <StatusSelect
                     value={lead.status}
                     onChange={(status) => onStatusChange([lead.id], status)}

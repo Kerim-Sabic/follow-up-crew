@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";
 import { fetchNotes, formatWhen, STATUSES, updateLeadStatus, type Lead, type LeadStatus } from "@/lib/crm";
+import { EMAIL_SEQUENCE, SUBJECT_LINES } from "@/lib/email-templates";
 import { Button } from "@/components/ui/button";
 import { LeadAvatar } from "./LeadAvatar";
 import { LeadBoard } from "./LeadBoard";
@@ -84,8 +85,30 @@ export function AnalyticsPage() {
 }
 
 export function TemplatesPage() {
-  const defaults = ["Friendly introduction", "Collaboration pitch", "Follow-up after 3 days"]; const [templates, setTemplates] = useState(defaults); const [draft, setDraft] = useState("");
-  return <Page><PageHeader title="Templates" description="Keep your best outreach messages ready to use." actions={<Button onClick={() => { if (!draft.trim()) return; setTemplates((items) => [...items, draft.trim()]); setDraft(""); toast.success("Template added"); }}><Plus />New template</Button>} /><div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]"><div className="overflow-hidden rounded-lg border border-border bg-card">{templates.map((item, index) => <div key={`${item}-${index}`} className="flex items-center gap-3 border-b border-border p-4 last:border-0"><span className="flex size-8 items-center justify-center rounded-md bg-secondary"><MessageSquareText className="size-4" /></span><div className="flex-1"><p className="text-sm font-medium">{item}</p><p className="text-xs text-muted-foreground">Personal message template</p></div><Button variant="ghost" size="sm" onClick={() => toast.success("Template ready to edit")}>Edit</Button></div>)}</div><div className="rounded-lg border border-border bg-card p-4"><h2 className="text-sm font-semibold">Quick create</h2><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Name your new template…" className="mt-3 min-h-28 w-full resize-none rounded-md border border-input p-3 text-sm outline-none focus:ring-2 focus:ring-ring/30" /><p className="mt-2 text-xs text-muted-foreground">Templates are kept in this browser until shared templates are enabled.</p></div></div></Page>;
+  const [step, setStep] = useState(1);
+  const [variant, setVariant] = useState(0);
+  const current = EMAIL_SEQUENCE.find((item) => item.step === step) ?? EMAIL_SEQUENCE[0]!;
+  const body = current.variants[Math.min(variant, current.variants.length - 1)] ?? "";
+  return <Page>
+    <PageHeader title="Templates" description="The full 7-email outreach sequence, ready to copy." actions={<Button onClick={() => { void navigator.clipboard.writeText(body); toast.success("Email copied"); }}><MessageSquareText />Copy email</Button>} />
+    <div className="mt-6 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="space-y-1">
+        {EMAIL_SEQUENCE.map((item) => <button key={item.step} onClick={() => { setStep(item.step); setVariant(0); }} className={`w-full rounded-md border px-3 py-2 text-left text-[13px] ${item.step === step ? "border-primary/40 bg-secondary font-medium" : "border-border hover:bg-secondary/60"}`}>Email {item.step}<span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">Reply keyword: {item.keyword}</span></button>)}
+      </div>
+      <div className="space-y-4">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-sm font-medium">Email {current.step}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{current.purpose}</p>
+          <div className="mt-3 flex flex-wrap gap-1.5">{current.variants.map((_, index) => <button key={index} onClick={() => setVariant(index)} className={`h-7 rounded-md border px-2.5 text-xs ${index === variant ? "border-primary/40 bg-secondary font-medium" : "border-border hover:bg-secondary/60"}`}>v{index + 1}</button>)}</div>
+          <pre className="mt-4 whitespace-pre-wrap font-sans text-[13px] leading-6">{body}</pre>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold">Subject lines</h2>
+          <div className="mt-3 grid gap-1.5 sm:grid-cols-2">{SUBJECT_LINES.map((line) => <button key={line} onClick={() => { void navigator.clipboard.writeText(line); toast.success("Subject copied"); }} className="truncate rounded-md border border-border px-2.5 py-1.5 text-left text-xs hover:bg-secondary/60">{line}</button>)}</div>
+        </div>
+      </div>
+    </div>
+  </Page>;
 }
 
 export function SettingsPage() { const { user } = useAuth(); const { profiles } = useWorkspace(); const profile = profiles.find((item) => item.id === user?.id); return <Page><PageHeader title="Settings" description="Manage your workspace preferences and account." /><div className="mt-6 max-w-2xl overflow-hidden rounded-lg border border-border bg-card"><div className="border-b border-border p-5"><h2 className="text-sm font-semibold">Profile</h2><p className="mt-1 text-xs text-muted-foreground">Your identity across the shared workspace.</p></div><dl className="grid gap-5 p-5 sm:grid-cols-2"><Info label="Display name" value={profile?.display_name ?? "Workspace member"} /><Info label="Email" value={user?.email ?? "—"} /><Info label="Workspace access" value="Team member" /><Info label="Realtime sync" value="Connected" /></dl></div></Page>; }

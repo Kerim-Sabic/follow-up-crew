@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, BarChart3, Bell, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
+  Activity, BarChart3, Bell, Bot, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
   Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus,
   Search, Settings, Users, Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
-import { updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
 import { LeadPanel } from "./LeadPanel";
@@ -26,7 +26,10 @@ const groups = [
     { to: "/pipeline", label: "Pipeline", icon: Columns3 },
   ]},
   { label: "Insights", items: [{ to: "/analytics", label: "Analytics", icon: BarChart3 }] },
-  { label: "Library", items: [{ to: "/templates", label: "Templates", icon: MessageSquareText }] },
+  { label: "Library", items: [
+    { to: "/templates", label: "Templates", icon: MessageSquareText },
+    { to: "/hermes", label: "Hermes AI", icon: Bot },
+  ] },
 ];
 
 export function AppShell() {
@@ -40,7 +43,7 @@ function ShellContent() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const { leads, profiles, addLeadOpen, setAddLeadOpen, activeLead, setActiveLead, setCommandOpen } = useWorkspace();
+  const { leads, profiles, addLeadOpen, setAddLeadOpen, activeLead, setActiveLead, setCommandOpen, workspace, setWorkspace, workspaceLabel } = useWorkspace();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const profile = profiles.find((item) => item.id === user?.id);
@@ -63,9 +66,15 @@ function ShellContent() {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Zap className="size-4" /></span>
-          {!collapsed ? <span className="truncate text-sm font-semibold">Outreach CRM</span> : null}
+          {!collapsed ? <span className="truncate text-sm font-semibold">{workspaceLabel}</span> : null}
           <Button variant="ghost" size="icon" className="ml-auto hidden size-8 lg:inline-flex" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</Button>
         </div>
+        {!collapsed ? <div className="border-b border-sidebar-border p-2">
+          <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase text-muted-foreground">CRM</p>
+          <div className="grid grid-cols-2 gap-1 rounded-md bg-secondary p-0.5">
+            {WORKSPACES.map((item) => <button key={item.value} onClick={() => setWorkspace(item.value as Workspace)} title={item.description} className={cn("h-7 truncate rounded px-2 text-[12px] font-medium transition-colors", workspace === item.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{item.label}</button>)}
+          </div>
+        </div> : null}
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           {groups.map((group) => <div key={group.label} className="mb-5">
             {!collapsed ? <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase text-muted-foreground">{group.label}</p> : null}

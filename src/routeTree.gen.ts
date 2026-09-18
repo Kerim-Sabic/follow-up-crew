@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
+import { Route as AuthenticatedHermesRouteImport } from './routes/_authenticated/hermes'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedOutreachRouteImport } from './routes/_authenticated/outreach'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
@@ -49,6 +50,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedFollowUpsRoute = AuthenticatedFollowUpsRouteImport.update({
   id: '/follow-ups',
   path: '/follow-ups',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHermesRoute = AuthenticatedHermesRouteImport.update({
+  id: '/hermes',
+  path: '/hermes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/hermes': typeof AuthenticatedHermesRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/outreach': typeof AuthenticatedOutreachRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/hermes': typeof AuthenticatedHermesRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/outreach': typeof AuthenticatedOutreachRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/_authenticated/hermes': typeof AuthenticatedHermesRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/outreach': typeof AuthenticatedOutreachRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/dashboard'
     | '/follow-ups'
+    | '/hermes'
     | '/leads'
     | '/outreach'
     | '/pipeline'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/dashboard'
     | '/follow-ups'
+    | '/hermes'
     | '/leads'
     | '/outreach'
     | '/pipeline'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/_authenticated/analytics'
     | '/_authenticated/dashboard'
     | '/_authenticated/follow-ups'
+    | '/_authenticated/hermes'
     | '/_authenticated/leads'
     | '/_authenticated/outreach'
     | '/_authenticated/pipeline'
@@ -216,6 +228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFollowUpsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/hermes': {
+      id: '/_authenticated/hermes'
+      path: '/hermes'
+      fullPath: '/hermes'
+      preLoaderRoute: typeof AuthenticatedHermesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/leads': {
       id: '/_authenticated/leads'
       path: '/leads'
@@ -265,6 +284,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
+  AuthenticatedHermesRoute: typeof AuthenticatedHermesRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedOutreachRoute: typeof AuthenticatedOutreachRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
@@ -277,6 +297,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
+  AuthenticatedHermesRoute: AuthenticatedHermesRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedOutreachRoute: AuthenticatedOutreachRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
