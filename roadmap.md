@@ -1,0 +1,7 @@
+- [ ] Audit existing app, routes, data contracts, and diagnostics
+- [ ] Establish premium design system and application shell
+- [ ] Redesign leads workspace, drawer, filters, and table interactions
+- [ ] Build operational dashboard and supporting workflows
+- [ ] Build pipeline and analytics experiences
+- [ ] Add loading, empty, error, keyboard, and responsive states
+- [ ] Complete visual QA and resolve all issues
