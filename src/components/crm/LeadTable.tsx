@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ExternalLink, Mail, MessageSquarePlus, MoreHorizontal } from "lucide-react";
-import { formatWhen, type Lead, type LeadStatus } from "@/lib/crm";
+import { ExternalLink, Instagram, Mail, MessageSquarePlus } from "lucide-react";
+import { formatWhen, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
 import { StatusSelect } from "./StatusSelect";
 import { LeadAvatar } from "./LeadAvatar";
 import { Checkbox } from "@/components/ui/checkbox";
