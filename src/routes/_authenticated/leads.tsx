@@ -72,6 +72,14 @@ function LeadsPage() {
     const csv = ["username,email,status", ...rows.map((lead) => `"${lead.username}","${lead.email ?? ""}","${lead.status}"`)].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "selected-leads.csv"; anchor.click(); URL.revokeObjectURL(url);
   };
+  const openNextInstagram = (count: number) => {
+    const queue = filtered.filter((lead) => lead.status === "not_contacted").slice(0, count);
+    if (queue.length === 0) { toast.info("No not-contacted leads left here."); return; }
+    let blocked = 0;
+    queue.forEach((lead) => { if (!window.open(instagramUrl(lead), "_blank", "noopener,noreferrer")) blocked += 1; });
+    if (blocked > 0) toast.warning(`${blocked} tabs were blocked — allow pop-ups for this site.`);
+    mutation.mutate({ ids: queue.map((lead) => lead.id), next: "contacted" });
+  };
   const activeFilters = Number(status !== "all") + Number(owner !== "all") + Number(hasEmail !== "all");
 
   return <div className="px-4 py-5 lg:px-6">
