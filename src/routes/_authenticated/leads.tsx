@@ -16,6 +16,7 @@ import { StatsBar } from "@/components/crm/StatsBar";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { LeadPanel } from "@/components/crm/LeadPanel";
+import { AddLeadDialog } from "@/components/crm/AddLeadDialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
