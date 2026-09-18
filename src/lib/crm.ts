@@ -99,25 +99,35 @@ export type NewLeadInput = {
   email?: string | null;
   instagram_url?: string | null;
   match_note?: string | null;
+  full_name?: string | null;
+  niche?: string | null;
   status?: LeadStatus;
 };
 
-export async function createLead(input: NewLeadInput, userId: string): Promise<Lead> {
-  const { data: last } = await supabase
+async function nextNumber(workspace: Workspace) {
+  const { data } = await supabase
     .from("leads")
     .select("number")
+    .eq("workspace", workspace)
     .order("number", { ascending: false })
     .limit(1)
     .maybeSingle();
+  return (data?.number ?? 0) + 1;
+}
 
+export async function createLead(input: NewLeadInput, userId: string, workspace: Workspace): Promise<Lead> {
+  const start = await nextNumber(workspace);
   const username = input.username.trim().replace(/^@/, "");
   const status = input.status ?? "not_contacted";
   const { data, error } = await supabase
     .from("leads")
     .insert({
-      number: (last?.number ?? 0) + 1,
+      number: start,
+      workspace,
       username,
       email: input.email?.trim() || null,
+      full_name: input.full_name?.trim() || null,
+      niche: input.niche?.trim() || null,
       instagram_url: input.instagram_url?.trim() || `https://instagram.com/${username}`,
       match_note: input.match_note?.trim() || null,
       status,
@@ -129,6 +139,42 @@ export async function createLead(input: NewLeadInput, userId: string): Promise<L
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function createLeads(inputs: NewLeadInput[], workspace: Workspace): Promise<number> {
+  if (inputs.length === 0) return 0;
+  const start = await nextNumber(workspace);
+  const rows = inputs.map((input, index) => {
+    const username = input.username.trim().replace(/^@/, "");
+    return {
+      number: start + index,
+      workspace,
+      username,
+      email: input.email?.trim() || null,
+      full_name: input.full_name?.trim() || null,
+      niche: input.niche?.trim() || null,
+      instagram_url: input.instagram_url?.trim() || `https://instagram.com/${username}`,
+      match_note: input.match_note?.trim() || null,
+      status: "not_contacted" as LeadStatus,
+    };
+  });
+  const { error } = await supabase.from("leads").insert(rows);
+  if (error) throw error;
+  return rows.length;
+}
+
+export type LeadEnrichment = {
+  niche?: string | null;
+  score?: number | null;
+  curation?: string | null;
+  match_note?: string | null;
+  email?: string | null;
+  full_name?: string | null;
+};
+
+export async function updateLeadFields(id: string, patch: LeadEnrichment) {
+  const { error } = await supabase.from("leads").update(patch).eq("id", id);
+  if (error) throw error;
 }
 
 export async function claimLead(id: string, userId: string | null) {
