@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Columns3, Download, Filter, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
+import { Columns3, Download, Filter, Instagram, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";
-import { STATUSES, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { TableSkeleton, ErrorState } from "@/components/crm/WorkspaceState";
