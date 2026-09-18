@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowRight, BarChart3, Check, Clock3, Copy, ExternalLink, Inbox, Mail, MessageSquareText, Plus, Send, Target, Users, Zap } from "lucide-react";
+import { Activity, ArrowRight, Check, Clock3, Copy, ExternalLink, Inbox, MessageSquareText, Plus, Send, Target, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";

@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, BarChart3, Bell, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
-  LayoutList, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus,
+  Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus,
   Search, Settings, Users, Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,13 +31,13 @@ const groups = [
 
 export function AppShell() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   if (!user) return null;
   return <WorkspaceProvider userId={user.id}><ShellContent /></WorkspaceProvider>;
 }
 
 function ShellContent() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { leads, profiles, addLeadOpen, setAddLeadOpen, activeLead, setActiveLead, setCommandOpen } = useWorkspace();

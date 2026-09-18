@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ExternalLink, Mail, MessageSquarePlus, MoreHorizontal } from "lucide-react";
 import { formatWhen, type Lead, type LeadStatus } from "@/lib/crm";
@@ -37,7 +37,7 @@ export function LeadTable({
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="grid min-w-[940px] grid-cols-[36px_minmax(220px,1.5fr)_minmax(180px,1.2fr)_130px_110px_100px_120px] items-center gap-3 border-b border-border bg-secondary/55 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
-        <Checkbox aria-label="Select all visible leads" checked={leads.length > 0 && leads.every((lead) => selected.has(lead.id))} onCheckedChange={onSelectAll} />
+        <Checkbox aria-label="Select all visible leads" checked={leads.length > 0 && leads.every((lead) => selected.has(lead.id))} onCheckedChange={() => onSelectAll?.()} />
         <span>Lead</span>
         <span>Contact</span>
         <span>Stage</span>
