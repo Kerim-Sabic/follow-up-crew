@@ -16,6 +16,7 @@ import { StatsBar } from "@/components/crm/StatsBar";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { LeadPanel } from "@/components/crm/LeadPanel";
+import { AddLeadDialog } from "@/components/crm/AddLeadDialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
@@ -41,6 +42,7 @@ function LeadsPage() {
   const [mineOnly, setMineOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const leadsQuery = useQuery({ queryKey: ["leads"], queryFn: fetchLeads });
   const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
@@ -80,7 +82,9 @@ function LeadsPage() {
       if (!term) return true;
       return (
         lead.username.toLowerCase().includes(term) ||
-        (lead.email ?? "").toLowerCase().includes(term)
+        (lead.email ?? "").toLowerCase().includes(term) ||
+        (lead.match_note ?? "").toLowerCase().includes(term) ||
+        String(lead.number).includes(term)
       );
     });
   }, [leads, search, statusFilter, mineOnly, user?.id]);
@@ -141,7 +145,7 @@ function LeadsPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search username or email…"
+            placeholder="Search username, email, note or #…"
             className="h-10 min-w-56 flex-1 rounded-lg border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/70 focus:ring-2 focus:ring-ring/40"
           />
           <select
@@ -181,6 +185,12 @@ function LeadsPage() {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            + Add lead
+          </button>
         </div>
 
         {selected.size > 0 ? (
@@ -236,6 +246,10 @@ function LeadsPage() {
           />
         )}
       </main>
+
+      {addOpen && user ? (
+        <AddLeadDialog userId={user.id} onClose={() => setAddOpen(false)} />
+      ) : null}
 
       {openLead && user ? (
         <LeadPanel

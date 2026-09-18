@@ -87,6 +87,43 @@ export async function updateLeadStatus(ids: string[], status: LeadStatus, userId
   if (error) throw error;
 }
 
+export type NewLeadInput = {
+  username: string;
+  email?: string | null;
+  instagram_url?: string | null;
+  match_note?: string | null;
+  status?: LeadStatus;
+};
+
+export async function createLead(input: NewLeadInput, userId: string): Promise<Lead> {
+  const { data: last } = await supabase
+    .from("leads")
+    .select("number")
+    .order("number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const username = input.username.trim().replace(/^@/, "");
+  const status = input.status ?? "not_contacted";
+  const { data, error } = await supabase
+    .from("leads")
+    .insert({
+      number: (last?.number ?? 0) + 1,
+      username,
+      email: input.email?.trim() || null,
+      instagram_url: input.instagram_url?.trim() || `https://instagram.com/${username}`,
+      match_note: input.match_note?.trim() || null,
+      status,
+      owner_id: status === "not_contacted" ? null : userId,
+      last_touched_at: status === "not_contacted" ? null : new Date().toISOString(),
+      last_touched_by: status === "not_contacted" ? null : userId,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function claimLead(id: string, userId: string | null) {
   const { error } = await supabase.from("leads").update({ owner_id: userId }).eq("id", id);
   if (error) throw error;
