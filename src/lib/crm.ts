@@ -45,6 +45,11 @@ export const STATUSES: { value: LeadStatus; label: string; className: string; do
   },
 ];
 
+export function instagramUrl(lead: Pick<Lead, "username" | "instagram_url">) {
+  const handle = lead.username.trim().replace(/^@/, "");
+  return lead.instagram_url?.trim() || `https://instagram.com/${handle}`;
+}
+
 export function statusMeta(status: LeadStatus) {
   return STATUSES.find((s) => s.value === status) ?? STATUSES[0]!;
 }
