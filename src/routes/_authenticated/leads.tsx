@@ -42,6 +42,7 @@ function LeadsPage() {
   const [mineOnly, setMineOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const leadsQuery = useQuery({ queryKey: ["leads"], queryFn: fetchLeads });
   const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
