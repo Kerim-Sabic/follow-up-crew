@@ -12,7 +12,7 @@ import {
   type Lead,
   type LeadStatus,
 } from "@/lib/crm";
-import { StatsBar } from "@/components/crm/StatsBar";
+import { Analytics } from "@/components/crm/Analytics";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { LeadPanel } from "@/components/crm/LeadPanel";
