@@ -11,12 +11,12 @@ export function InstagramBatchDialog({
   open,
   onOpenChange,
   leads,
-  onMarkContacted,
+  onReview,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leads: Lead[];
-  onMarkContacted: (ids: string[]) => void;
+  onReview: (batch: Lead[]) => void;
 }) {
   const [count, setCount] = useState(10);
   const [opened, setOpened] = useState<Lead[]>([]);
@@ -60,9 +60,8 @@ export function InstagramBatchDialog({
   function finish() {
     const batch = opened.length ? opened : queue;
     if (batch.length === 0) return;
-    onMarkContacted(batch.map((lead) => lead.id));
+    onReview(batch);
     setOpened([]);
-    onOpenChange(false);
   }
 
   return (
