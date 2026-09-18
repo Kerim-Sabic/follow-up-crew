@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { FollowUpsPage } from "@/components/crm/WorkspacePages";
+export const Route = createFileRoute("/_authenticated/follow-ups")({ head: () => ({ meta: [{ title: "Follow-ups — Outreach CRM" }, { name: "description", content: "Review overdue and upcoming outreach follow-ups." }, { property: "og:title", content: "Follow-ups — Outreach CRM" }, { property: "og:description", content: "Review overdue and upcoming outreach follow-ups." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: FollowUpsPage });

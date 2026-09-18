@@ -34,7 +34,7 @@ function AuthPage() {
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/leads", replace: true });
+    if (user) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
 
   async function handleSubmit(event: React.FormEvent) {

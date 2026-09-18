@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { DashboardPage } from "@/components/crm/WorkspacePages";
+export const Route = createFileRoute("/_authenticated/dashboard")({ head: () => ({ meta: [{ title: "Home — Outreach CRM" }, { name: "description", content: "Your outreach priorities, queue and pipeline." }, { property: "og:title", content: "Home — Outreach CRM" }, { property: "og:description", content: "Your outreach priorities, queue and pipeline." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: DashboardPage });
