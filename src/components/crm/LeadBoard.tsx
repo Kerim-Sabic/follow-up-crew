@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { STATUSES, type Lead, type LeadStatus } from "@/lib/crm";
+import { Instagram } from "lucide-react";
+import { STATUSES, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
 import { cn } from "@/lib/utils";
 import { LeadAvatar } from "./LeadAvatar";
 import { StatusSelect } from "./StatusSelect";
