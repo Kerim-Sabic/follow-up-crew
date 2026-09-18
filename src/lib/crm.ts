@@ -2,6 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 export type LeadStatus = Database["public"]["Enums"]["lead_status"];
+export type Workspace = Database["public"]["Enums"]["workspace_key"];
+
+export const WORKSPACES: { value: Workspace; label: string; description: string }[] = [
+  { value: "docmesker", label: "DocMesKer", description: "Original outreach list" },
+  { value: "justin", label: "Justin", description: "Curated creator list" },
+];
 export type Lead = Database["public"]["Tables"]["leads"]["Row"];
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type LeadNote = Database["public"]["Tables"]["lead_notes"]["Row"];
@@ -45,12 +51,13 @@ export function statusMeta(status: LeadStatus) {
 
 const PAGE = 1000;
 
-export async function fetchLeads(): Promise<Lead[]> {
+export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
   const all: Lead[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from("leads")
       .select("*")
+      .eq("workspace", workspace)
       .order("number", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
