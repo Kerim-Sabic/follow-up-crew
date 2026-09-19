@@ -113,7 +113,14 @@ export function composeUrl(to: string, subject: string, body: string, client: Ma
 
 export function openCompose(url: string, client: MailClient) {
   if (client === "default") {
-    window.location.href = url;
+    // A real anchor click keeps the page in place and hands the draft to the
+    // desktop mail app, unlike window.open which some browsers block.
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
     return;
   }
   window.open(url, "_blank", "noopener,noreferrer");
