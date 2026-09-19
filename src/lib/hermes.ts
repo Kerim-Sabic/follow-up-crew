@@ -36,39 +36,103 @@ function endpoint(settings: HermesSettings, path: string) {
 
 export type HermesMessage = { role: "system" | "user" | "assistant"; content: string };
 
+export type HermesOptions = {
+  temperature?: number;
+  signal?: AbortSignal;
+  onToken?: (chunk: string, full: string) => void;
+  json?: boolean;
+};
+
+function friendly(error: unknown): Error {
+  if (error instanceof Error) {
+    if (error.name === "AbortError") return error;
+    if (error.message === "Failed to fetch" || error.name === "TypeError") {
+      return new Error(
+        "Couldn't reach your model. Check it's running, the address is right, and that it allows this site (Ollama: set OLLAMA_ORIGINS=*). Browsers also block plain http:// calls from an https:// page — run the app locally or put your model behind https.",
+      );
+    }
+    return error;
+  }
+  return new Error("Hermes could not be reached.");
+}
+
+async function request(settings: HermesSettings, path: string, init: RequestInit) {
+  let response: Response;
+  try {
+    response = await fetch(endpoint(settings, path), {
+      ...init,
+      headers: {
+        ...(init.headers ?? {}),
+        ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+      },
+    });
+  } catch (error) {
+    throw friendly(error);
+  }
+  if (!response.ok) {
+    const body = (await response.text()).slice(0, 300);
+    if (response.status === 404) throw new Error(`Model "${settings.model}" or this address was not found (404). ${body}`);
+    throw new Error(`Hermes replied with ${response.status}: ${body}`);
+  }
+  return response;
+}
+
 export async function hermesChat(
   settings: HermesSettings,
   messages: HermesMessage[],
-  options?: { temperature?: number; signal?: AbortSignal },
+  options?: HermesOptions,
 ): Promise<string> {
-  const response = await fetch(endpoint(settings, "/chat/completions"), {
+  const stream = Boolean(options?.onToken);
+  const response = await request(settings, "/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: settings.model,
       messages,
       temperature: options?.temperature ?? 0.4,
-      stream: false,
+      stream,
+      ...(options?.json ? { response_format: { type: "json_object" } } : {}),
     }),
     ...(options?.signal ? { signal: options.signal } : {}),
   });
-  if (!response.ok) {
-    throw new Error(`Hermes replied with ${response.status}: ${(await response.text()).slice(0, 300)}`);
+
+  if (!stream || !response.body) {
+    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Hermes returned an empty answer.");
+    return text;
   }
-  const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Hermes returned an empty answer.");
-  return text;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const chunk = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] };
+        const piece = chunk.choices?.[0]?.delta?.content;
+        if (piece) { full += piece; options?.onToken?.(piece, full); }
+      } catch {
+        // ignore partial frames
+      }
+    }
+  }
+  if (!full) throw new Error("Hermes returned an empty answer.");
+  return full;
 }
 
 export async function hermesModels(settings: HermesSettings): Promise<string[]> {
-  const response = await fetch(endpoint(settings, "/models"), {
-    headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {},
-  });
-  if (!response.ok) throw new Error(`Could not reach Hermes (${response.status}).`);
+  const response = await request(settings, "/models", { method: "GET" });
   const data = (await response.json()) as { data?: { id: string }[] };
   return (data.data ?? []).map((item) => item.id);
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, Instagram, Check } from "lucide-react";
+import { Download, Instagram, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,12 @@ export function InstagramBatchDialog({
   open,
   onOpenChange,
   leads,
-  onMarkContacted,
+  onReview,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leads: Lead[];
-  onMarkContacted: (ids: string[]) => void;
+  onReview: (batch: Lead[]) => void;
 }) {
   const [count, setCount] = useState(10);
   const [opened, setOpened] = useState<Lead[]>([]);
@@ -60,9 +60,8 @@ export function InstagramBatchDialog({
   function finish() {
     const batch = opened.length ? opened : queue;
     if (batch.length === 0) return;
-    onMarkContacted(batch.map((lead) => lead.id));
+    onReview(batch);
     setOpened([]);
-    onOpenChange(false);
   }
 
   return (
@@ -95,7 +94,7 @@ export function InstagramBatchDialog({
 
           <p className="text-xs text-muted-foreground">
             {queue.length.toLocaleString()} not-contacted leads ready in this batch.
-            {opened.length ? ` ${opened.length} handed out — mark them contacted when you're done.` : ""}
+            {opened.length ? ` ${opened.length} handed out — review them one by one when you're done.` : ""}
           </p>
 
           <div className="flex gap-2">
@@ -111,7 +110,7 @@ export function InstagramBatchDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
           <Button onClick={finish} disabled={queue.length === 0}>
-            <Check />Mark batch contacted
+            <Layers />Review batch
           </Button>
         </DialogFooter>
       </DialogContent>

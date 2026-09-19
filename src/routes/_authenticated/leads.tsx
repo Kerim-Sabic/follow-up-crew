@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";
 import { STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
+import { SwipeReview, type SwipeDecision } from "@/components/crm/SwipeReview";
+import type { Lead } from "@/lib/crm";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { TableSkeleton, ErrorState } from "@/components/crm/WorkspaceState";
@@ -41,6 +43,8 @@ function LeadsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
   const [batchOpen, setBatchOpen] = useState(false);
+  const [swipeOpen, setSwipeOpen] = useState(false);
+  const [swipeQueue, setSwipeQueue] = useState<Lead[]>([]);
 
   useEffect(() => { const id = window.setTimeout(() => setDeferredSearch(search.trim().toLowerCase()), 150); return () => window.clearTimeout(id); }, [search]);
   useEffect(() => { localStorage.setItem("crm-view", view); }, [view]);
@@ -73,12 +77,26 @@ function LeadsPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "selected-leads.csv"; anchor.click(); URL.revokeObjectURL(url);
   };
   const openNextInstagram = (count: number) => {
-    const queue = filtered.filter((lead) => lead.status === "not_contacted").slice(0, count);
-    if (queue.length === 0) { toast.info("No not-contacted leads left here."); return; }
+    const seen = new Set<string>(JSON.parse(localStorage.getItem("crm.opened-today") ?? "[]") as string[]);
+    const queue = filtered
+      .filter((lead) => lead.status === "not_contacted" && !seen.has(lead.id))
+      .slice(0, count);
+    if (queue.length === 0) { toast.info("No fresh not-contacted leads left in this view."); return; }
     let blocked = 0;
     queue.forEach((lead) => { if (!window.open(instagramUrl(lead), "_blank", "noopener,noreferrer")) blocked += 1; });
-    if (blocked > 0) toast.warning(`${blocked} tabs were blocked — allow pop-ups for this site.`);
-    mutation.mutate({ ids: queue.map((lead) => lead.id), next: "contacted" });
+    queue.forEach((lead) => seen.add(lead.id));
+    localStorage.setItem("crm.opened-today", JSON.stringify([...seen].slice(-500)));
+    if (blocked > 0) toast.warning(`${blocked} of ${queue.length} tabs were blocked — allow pop-ups for this site.`);
+    else toast.success(`Opened ${queue.length} profiles — swipe to record what you did.`);
+    setSwipeQueue(queue);
+    setSwipeOpen(true);
+  };
+  const saveDecisions = (decisions: SwipeDecision[]) => {
+    const contacted = decisions.filter((item) => item.status === "contacted").map((item) => item.lead.id);
+    const dead = decisions.filter((item) => item.status === "dead").map((item) => item.lead.id);
+    if (contacted.length) mutation.mutate({ ids: contacted, next: "contacted" });
+    if (dead.length) mutation.mutate({ ids: dead, next: "dead" });
+    if (!contacted.length && !dead.length) toast.info("Nothing changed — those leads stay untouched.");
   };
   const activeFilters = Number(status !== "all") + Number(owner !== "all") + Number(hasEmail !== "all");
 
@@ -102,7 +120,8 @@ function LeadsPage() {
       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>{filtered.length.toLocaleString()} results</span><span>Live workspace</span></div>
       {isLoading ? <TableSkeleton /> : error ? <ErrorState onRetry={() => queryClient.invalidateQueries({ queryKey: ["leads"] })} /> : view === "table" ? <LeadTable leads={filtered} ownerName={ownerName} selected={selected} onToggleSelect={(id) => setSelected((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; })} onSelectAll={() => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((lead) => lead.id)))} onOpen={setActiveLead} onStatusChange={(ids, next) => mutation.mutate({ ids, next })} /> : <LeadBoard leads={filtered} ownerName={ownerName} onOpen={setActiveLead} onStatusChange={(ids, next) => mutation.mutate({ ids, next })} />}
     </div>
-    <InstagramBatchDialog open={batchOpen} onOpenChange={setBatchOpen} leads={filtered} onMarkContacted={(ids) => mutation.mutate({ ids, next: "contacted" })} />
+    <InstagramBatchDialog open={batchOpen} onOpenChange={setBatchOpen} leads={filtered} onReview={(batch) => { setBatchOpen(false); setSwipeQueue(batch); setSwipeOpen(true); }} />
+    <SwipeReview open={swipeOpen} onOpenChange={setSwipeOpen} queue={swipeQueue} onFinish={saveDecisions} />
   </div>;
 }
 
