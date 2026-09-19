@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      email_messages: {
+        Row: {
+          body: string | null
+          created_at: string
+          direction: string
+          from_email: string | null
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          is_read: boolean
+          lead_id: string | null
+          mail_account_id: string | null
+          sent_at: string
+          snippet: string | null
+          subject: string | null
+          to_email: string | null
+          user_id: string | null
+          workspace: Database["public"]["Enums"]["workspace_key"]
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          direction: string
+          from_email?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          is_read?: boolean
+          lead_id?: string | null
+          mail_account_id?: string | null
+          sent_at?: string
+          snippet?: string | null
+          subject?: string | null
+          to_email?: string | null
+          user_id?: string | null
+          workspace?: Database["public"]["Enums"]["workspace_key"]
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          direction?: string
+          from_email?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          is_read?: boolean
+          lead_id?: string | null
+          mail_account_id?: string | null
+          sent_at?: string
+          snippet?: string | null
+          subject?: string | null
+          to_email?: string | null
+          user_id?: string | null
+          workspace?: Database["public"]["Enums"]["workspace_key"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_messages_mail_account_id_fkey"
+            columns: ["mail_account_id"]
+            isOneToOne: false
+            referencedRelation: "mail_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_notes: {
         Row: {
           author_id: string
@@ -166,6 +238,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mail_accounts: {
+        Row: {
+          app_user_id: string
+          connection_key_ciphertext: string | null
+          connector_id: string
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          last_synced_at: string | null
+          reconnect_required: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_user_id: string
+          connection_key_ciphertext?: string | null
+          connector_id?: string
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          reconnect_required?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_user_id?: string
+          connection_key_ciphertext?: string | null
+          connector_id?: string
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          reconnect_required?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
