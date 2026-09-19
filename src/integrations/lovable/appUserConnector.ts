@@ -19,8 +19,8 @@ export interface AppUserOAuthAuthorizeParams {
   appUserId: string;
   clientAPIKey: string;
   returnUrl: string;
-  connectionAPIKey?: string;
-  credentialsConfiguration?: Record<string, unknown>;
+  connectionAPIKey?: string | undefined;
+  credentialsConfiguration?: Record<string, unknown> | undefined;
 }
 
 export interface AppUserOAuthAuthorizeResponse {
@@ -67,8 +67,8 @@ export interface CallAsAppUserParams {
   connectionAPIKey: string;
   connectorId: string;
   path: string;
-  init?: RequestInit;
-  requiredScopes?: string[];
+  init?: RequestInit | undefined;
+  requiredScopes?: string[] | undefined;
 }
 
 export async function callAsAppUser({

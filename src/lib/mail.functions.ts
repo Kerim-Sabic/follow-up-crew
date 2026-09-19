@@ -36,7 +36,7 @@ export const listMailboxes = createServerFn({ method: "GET" })
 
 export const startMailboxConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { mailboxId?: string }) => input ?? {})
+  .inputValidator((input: { mailboxId?: string | undefined }) => input ?? {})
   .handler(async ({ data, context }) => {
     const {
       CONNECTOR_ID,
