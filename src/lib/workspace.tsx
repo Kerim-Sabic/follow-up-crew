@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchLeads, fetchProfiles, fetchStages, toStageMeta, WORKSPACES, type Lead, type Profile, type Stage, type StageMeta, type Workspace } from "@/lib/crm";
+import { fetchLeads, fetchProfiles, fetchStages, setStatusRegistry, toStageMeta, WORKSPACES, type Lead, type Profile, type Stage, type StageMeta, type Workspace } from "@/lib/crm";
 
 const STORAGE_KEY = "crm.workspace";
 
@@ -85,6 +85,7 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data]);
   const rawStages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
   const stages = useMemo(() => rawStages.map(toStageMeta), [rawStages]);
+  setStatusRegistry(stages);
   const value = useMemo<WorkspaceValue>(() => ({
     workspace,
     setWorkspace,

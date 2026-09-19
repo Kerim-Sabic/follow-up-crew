@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
 import { LeadPanel } from "./LeadPanel";
 import { CommandMenu } from "./CommandMenu";
+import { ManageStagesDialog } from "./ManageStagesDialog";
 import { cn } from "@/lib/utils";
 
 const groups = [
@@ -108,6 +109,7 @@ function ShellContent() {
       <main className="min-w-0"><Outlet /></main>
     </div>
     <CommandMenu />
+    <ManageStagesDialog />
     {addLeadOpen && user ? <AddLeadDialog userId={user.id} onClose={() => setAddLeadOpen(false)} /> : null}
     {activeLead && user ? <LeadPanel lead={activeLead} userId={user.id} ownerName={(id) => id === user.id ? "You" : profiles.find((item) => item.id === id)?.display_name ?? "Unassigned"} onClose={() => setActiveLead(null)} onStatusChange={(ids, status) => statusMutation.mutate({ ids, status })} /> : null}
   </div>;
