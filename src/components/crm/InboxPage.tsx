@@ -107,7 +107,7 @@ export function InboxPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-[1800px] space-y-4 px-4 py-5 lg:px-6">
       <PageHeader
         title="Inbox"
         description="Replies from the leads you emailed, in the mailbox you sent from."
