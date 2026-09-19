@@ -97,6 +97,17 @@ export function toStageMeta(stage: Stage): StageMeta {
   };
 }
 
+export function setStatusRegistry(stages: StageMeta[]) {
+  if (!stages.length) return;
+  const next = stages.map((stage) => ({ value: stage.value, label: stage.label, className: stage.className, dot: stage.dot }));
+  const same = next.length === STATUSES.length && next.every((item, index) => {
+    const current = STATUSES[index]!;
+    return current.value === item.value && current.label === item.label && current.className === item.className;
+  });
+  if (same) return;
+  STATUSES.splice(0, STATUSES.length, ...next);
+}
+
 export function leadStage(lead: Pick<Lead, "stage" | "status">) {
   return lead.stage ?? lead.status;
 }
