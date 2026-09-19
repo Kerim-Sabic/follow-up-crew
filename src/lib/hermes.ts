@@ -330,3 +330,28 @@ export function parsePartialObjects<T>(text: string): T[] {
   }
   return out;
 }
+
+/** Tries the usual local Hermes addresses so the user doesn't have to guess. */
+export const COMMON_HERMES_URLS = [
+  "http://127.0.0.1:8642/v1",
+  "http://localhost:8642/v1",
+  "http://127.0.0.1:8643/v1",
+  "http://127.0.0.1:1234/v1",
+  "http://127.0.0.1:8000/v1",
+];
+
+export type HermesDiscovery = { baseUrl: string; models: string[]; latencyMs: number } | null;
+
+export async function hermesDiscover(settings: HermesSettings): Promise<HermesDiscovery> {
+  const candidates = Array.from(new Set([settings.baseUrl, ...COMMON_HERMES_URLS]));
+  for (const baseUrl of candidates) {
+    const started = performance.now();
+    try {
+      const models = await hermesModels({ ...settings, baseUrl });
+      if (models.length) return { baseUrl, models, latencyMs: Math.round(performance.now() - started) };
+    } catch {
+      // try the next address
+    }
+  }
+  return null;
+}
