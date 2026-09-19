@@ -8,11 +8,12 @@ import {
   DEFAULT_HERMES,
   extractJson,
   hermesChat,
-  hermesModels,
+  hermesTestConnection,
   loadHermes,
   saveHermes,
   type HermesSettings,
 } from "@/lib/hermes";
+
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "./WorkspacePages";
 
@@ -42,8 +43,12 @@ export function HermesPage() {
   const [models, setModels] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress>(null);
+  const [latency, setLatency] = useState<number | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
 
   const [brief, setBrief] = useState("Instagram creators in the health and fitness niche with 10k–100k followers who sell no products yet.");
   const [count, setCount] = useState(15);
