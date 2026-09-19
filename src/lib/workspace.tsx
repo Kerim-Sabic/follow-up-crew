@@ -125,3 +125,25 @@ export function useWorkspace() {
   if (!value) throw new Error("useWorkspace must be used inside WorkspaceProvider");
   return value;
 }
+
+/** Patches every cached leads list immediately so a stage change shows up without waiting for a refetch. */
+export function useOptimisticStage() {
+  const queryClient = useQueryClient();
+  return (ids: string[], stage: string, userId: string) => {
+    const set = new Set(ids);
+    const now = new Date().toISOString();
+    queryClient.setQueriesData<Lead[]>({ queryKey: ["leads"] }, (old) =>
+      old?.map((lead) =>
+        set.has(lead.id)
+          ? {
+              ...lead,
+              stage,
+              last_touched_at: now,
+              last_touched_by: userId || lead.last_touched_by,
+              owner_id: stage !== "not_contacted" && userId ? userId : lead.owner_id,
+            }
+          : lead,
+      ),
+    );
+  };
+}
