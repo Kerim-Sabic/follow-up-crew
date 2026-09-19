@@ -90,33 +90,6 @@ export function AnalyticsPage() {
   return <Page><PageHeader title="Analytics" description="Understand outreach performance and pipeline health." actions={<div className="flex rounded-md border border-input bg-card p-0.5">{["7D","30D","90D"].map((item) => <Button key={item} size="sm" variant={range === item ? "secondary" : "ghost"} onClick={() => setRange(item)}>{item}</Button>)}</div>} /><div className="mt-6 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-5">{metrics.map((metric) => <div key={metric.label} className="border-r border-border p-4 last:border-0"><p className="text-xs text-muted-foreground">{metric.label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{typeof metric.value === "number" ? metric.value.toLocaleString() : metric.value}</p></div>)}</div><div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]"><section className="rounded-lg border border-border bg-card p-5"><h2 className="text-sm font-semibold">Outreach activity</h2><p className="mt-1 text-xs text-muted-foreground">Lead updates over the last 14 days</p><div className="mt-8 flex h-52 items-end gap-2">{days.map((day) => <div key={day.label} className="flex h-full flex-1 flex-col items-center justify-end gap-2"><span className="text-[10px] tabular-nums text-muted-foreground">{day.value || ""}</span><div className="w-full max-w-8 rounded-t bg-primary/80" style={{ height: `${Math.max(3, day.value / peak * 150)}px` }} /><span className="text-[10px] text-muted-foreground">{day.label.slice(0,1)}</span></div>)}</div></section><section className="rounded-lg border border-border bg-card p-5"><h2 className="text-sm font-semibold">Team performance</h2><div className="mt-4 space-y-4">{profiles.map((profile) => { const owned = leads.filter((lead) => lead.owner_id === profile.id); const won = owned.filter((lead) => leadStage(lead) === "deal").length; return <div key={profile.id}><div className="flex items-center justify-between text-xs"><span>{profile.display_name}</span><span className="tabular-nums text-muted-foreground">{owned.length} touched · {won} deals</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary" style={{ width: `${Math.max(2, contacted ? owned.length / contacted * 100 : 0)}%` }} /></div></div>; })}</div></section></div></Page>;
 }
 
-export function TemplatesPage() {
-  const [step, setStep] = useState(1);
-  const [variant, setVariant] = useState(0);
-  const current = EMAIL_SEQUENCE.find((item) => item.step === step) ?? EMAIL_SEQUENCE[0]!;
-  const body = current.variants[Math.min(variant, current.variants.length - 1)] ?? "";
-  return <Page>
-    <PageHeader title="Templates" description="The full 7-email outreach sequence, ready to copy." actions={<Button onClick={() => { void navigator.clipboard.writeText(body); toast.success("Email copied"); }}><MessageSquareText />Copy email</Button>} />
-    <div className="mt-6 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <div className="space-y-1">
-        {EMAIL_SEQUENCE.map((item) => <button key={item.step} onClick={() => { setStep(item.step); setVariant(0); }} className={`w-full rounded-md border px-3 py-2 text-left text-[13px] ${item.step === step ? "border-primary/40 bg-secondary font-medium" : "border-border hover:bg-secondary/60"}`}>Email {item.step}<span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">Reply keyword: {item.keyword}</span></button>)}
-      </div>
-      <div className="space-y-4">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm font-medium">Email {current.step}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{current.purpose}</p>
-          <div className="mt-3 flex flex-wrap gap-1.5">{current.variants.map((_, index) => <button key={index} onClick={() => setVariant(index)} className={`h-7 rounded-md border px-2.5 text-xs ${index === variant ? "border-primary/40 bg-secondary font-medium" : "border-border hover:bg-secondary/60"}`}>v{index + 1}</button>)}</div>
-          <pre className="mt-4 whitespace-pre-wrap font-sans text-[13px] leading-6">{body}</pre>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-sm font-semibold">Subject lines</h2>
-          <div className="mt-3 grid gap-1.5 sm:grid-cols-2">{SUBJECT_LINES.map((line) => <button key={line} onClick={() => { void navigator.clipboard.writeText(line); toast.success("Subject copied"); }} className="truncate rounded-md border border-border px-2.5 py-1.5 text-left text-xs hover:bg-secondary/60">{line}</button>)}</div>
-        </div>
-      </div>
-    </div>
-  </Page>;
-}
-
 export function SettingsPage() { const { user } = useAuth(); const { profiles } = useWorkspace(); const profile = profiles.find((item) => item.id === user?.id); return <Page><PageHeader title="Settings" description="Manage your workspace preferences and account." /><div className="mt-6 max-w-2xl overflow-hidden rounded-lg border border-border bg-card"><div className="border-b border-border p-5"><h2 className="text-sm font-semibold">Profile</h2><p className="mt-1 text-xs text-muted-foreground">Your identity across the shared workspace.</p></div><dl className="grid gap-5 p-5 sm:grid-cols-2"><Info label="Display name" value={profile?.display_name ?? "Workspace member"} /><Info label="Email" value={user?.email ?? "—"} /><Info label="Workspace access" value="Team member" /><Info label="Realtime sync" value="Connected" /></dl></div></Page>; }
 
 function Page({ children }: { children: React.ReactNode }) { return <div className="mx-auto max-w-[1800px] px-4 py-5 lg:px-6">{children}</div>; }
