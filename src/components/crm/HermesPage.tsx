@@ -8,11 +8,12 @@ import {
   DEFAULT_HERMES,
   extractJson,
   hermesChat,
-  hermesModels,
+  hermesTestConnection,
   loadHermes,
   saveHermes,
   type HermesSettings,
 } from "@/lib/hermes";
+
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "./WorkspacePages";
 
@@ -42,8 +43,12 @@ export function HermesPage() {
   const [models, setModels] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress>(null);
+  const [latency, setLatency] = useState<number | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
 
   const [brief, setBrief] = useState("Instagram creators in the health and fitness niche with 10k–100k followers who sell no products yet.");
   const [count, setCount] = useState(15);
@@ -88,17 +93,25 @@ export function HermesPage() {
 
   async function test() {
     note("Testing connection…");
-    await guard("test", async () => {
-      const list = await hermesModels(settings);
-      setModels(list);
-      setStatus("ok");
-      note(list.length ? `Connected. ${list.length} models available.` : "Connected.");
-      toast.success(list.length ? `Connected. Models: ${list.slice(0, 4).join(", ")}` : "Connected to Hermes.");
-      if (list.length && !list.includes(settings.model)) {
-        toast.warning(`"${settings.model}" isn't on the list — pick one of the models below.`);
-      }
-    }).catch(() => { setStatus("error"); note("Connection failed."); });
+    setBusy("test");
+    try {
+      const result = await hermesTestConnection(settings);
+      setModels(result.models);
+      setLatency(result.latencyMs || null);
+      setStatus(result.ok ? "ok" : "error");
+      setBlocked(result.kind === "local-network-denied");
+      note(result.message);
+      if (result.ok) toast.success(result.message); else toast.error(result.message);
+    } catch (error) {
+      setStatus("error");
+      const message = error instanceof Error ? error.message : "Hermes could not be reached.";
+      note(message);
+      toast.error(message);
+    } finally {
+      setBusy(null);
+    }
   }
+
 
   async function expand() {
     setSuggestions([]);
@@ -219,20 +232,28 @@ export function HermesPage() {
 
       <section className="mt-6 rounded-lg border border-border bg-card p-5">
         <div className="flex items-center gap-2"><Plug className="size-4 text-muted-foreground" /><h2 className="text-sm font-semibold">Connection</h2>
-          <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] ${status === "ok" ? "bg-success-soft text-success" : status === "error" ? "bg-destructive/10 text-destructive" : "bg-secondary text-muted-foreground"}`}>{status === "ok" ? "Connected" : status === "error" ? "Not reachable" : "Not tested"}</span>
+          <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] ${status === "ok" ? "bg-success-soft text-success" : status === "error" ? "bg-destructive/10 text-destructive" : "bg-secondary text-muted-foreground"}`}>{status === "ok" ? `Connected${latency !== null ? ` · ${latency} ms` : ""}` : status === "error" ? "Not reachable" : "Not tested"}</span>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <label className="text-xs text-muted-foreground">Address on your PC<input className={`${inputClass} mt-1`} value={settings.baseUrl} onChange={(event) => setSettings({ ...settings, baseUrl: event.target.value })} placeholder={DEFAULT_HERMES.baseUrl} /></label>
-          <label className="text-xs text-muted-foreground">Model name<input className={`${inputClass} mt-1`} value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} placeholder="hermes3" list="hermes-models" /><datalist id="hermes-models">{models.map((model) => <option key={model} value={model} />)}</datalist></label>
-          <label className="text-xs text-muted-foreground">Key (optional)<input className={`${inputClass} mt-1`} value={settings.apiKey} onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })} placeholder="Leave empty for local" /></label>
+          <label className="text-xs text-muted-foreground">Model name<input className={`${inputClass} mt-1`} value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} placeholder={DEFAULT_HERMES.model} list="hermes-models" /><datalist id="hermes-models">{models.map((model) => <option key={model} value={model} />)}</datalist></label>
+          <label className="text-xs text-muted-foreground">Key (optional)<input className={`${inputClass} mt-1`} type="password" value={settings.apiKey} onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })} placeholder="Leave empty for local" /></label>
         </div>
         {models.length ? <div className="mt-3 flex flex-wrap gap-1.5">{models.slice(0, 12).map((model) => <button key={model} onClick={() => setSettings({ ...settings, model })} className={`rounded-md border px-2 py-1 text-[11px] ${settings.model === model ? "border-primary bg-accent" : "border-border hover:bg-secondary"}`}>{model}</button>)}</div> : null}
-        <p className="mt-3 text-xs text-muted-foreground">Your model stays on your computer — this page talks to it straight from your browser. If it refuses the connection, allow this site in your model server settings (for Ollama: set OLLAMA_ORIGINS to <code>*</code>).</p>
-        <div className="mt-4 flex gap-2">
+        <p className="mt-3 text-xs text-muted-foreground">Hermes stays on your computer — this page talks to it straight from your browser, never through a server. Your key is kept on this device only.</p>
+        {blocked ? <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">Local network access is blocked. Allow Local Network Access for this site in your browser settings, then retry.</div> : null}
+        {helpOpen ? <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3 text-xs leading-5 text-muted-foreground">
+          <p className="font-medium text-foreground">Chrome / Chromium</p>
+          <p>Click the icon left of the address bar → Site settings → Local network access → Allow. Then press Test connection again — no page reload needed.</p>
+          <p className="mt-2">If Chrome shows a permission prompt when you press Test connection, choose Allow.</p>
+        </div> : null}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => { saveHermes(settings); toast.success("Saved on this device"); }}><Save />Save</Button>
           <Button onClick={test} disabled={busy === "test"}>{busy === "test" ? <Loader2 className="animate-spin" /> : <Plug />}Test connection</Button>
+          <button type="button" onClick={() => setHelpOpen((open) => !open)} className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">Browser permission help</button>
           {busy ? <Button variant="ghost" onClick={stop}><CircleStop />Stop</Button> : null}
         </div>
+
         <ProgressBar progress={progress} />
         {log.length ? <div className="mt-4 max-h-32 overflow-y-auto rounded-md border border-border bg-secondary/40 p-2 font-mono text-[11px] leading-5 text-muted-foreground">{log.map((line, index) => <p key={index}>{line}</p>)}</div> : null}
       </section>
