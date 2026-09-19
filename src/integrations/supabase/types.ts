@@ -53,6 +53,42 @@ export type Database = {
           },
         ]
       }
+      lead_stages: {
+        Row: {
+          base_status: Database["public"]["Enums"]["lead_status"]
+          color: string
+          created_at: string
+          id: string
+          is_builtin: boolean
+          key: string
+          label: string
+          position: number
+          workspace: Database["public"]["Enums"]["workspace_key"]
+        }
+        Insert: {
+          base_status?: Database["public"]["Enums"]["lead_status"]
+          color?: string
+          created_at?: string
+          id?: string
+          is_builtin?: boolean
+          key: string
+          label: string
+          position?: number
+          workspace: Database["public"]["Enums"]["workspace_key"]
+        }
+        Update: {
+          base_status?: Database["public"]["Enums"]["lead_status"]
+          color?: string
+          created_at?: string
+          id?: string
+          is_builtin?: boolean
+          key?: string
+          label?: string
+          position?: number
+          workspace?: Database["public"]["Enums"]["workspace_key"]
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           created_at: string
@@ -69,6 +105,7 @@ export type Database = {
           number: number | null
           owner_id: string | null
           score: number | null
+          stage: string | null
           status: Database["public"]["Enums"]["lead_status"]
           username: string
           workspace: Database["public"]["Enums"]["workspace_key"]
@@ -88,6 +125,7 @@ export type Database = {
           number?: number | null
           owner_id?: string | null
           score?: number | null
+          stage?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           username: string
           workspace?: Database["public"]["Enums"]["workspace_key"]
@@ -107,6 +145,7 @@ export type Database = {
           number?: number | null
           owner_id?: string | null
           score?: number | null
+          stage?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           username?: string
           workspace?: Database["public"]["Enums"]["workspace_key"]
