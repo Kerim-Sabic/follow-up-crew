@@ -22,6 +22,7 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRepliesRouteImport } from './routes/_authenticated/replies'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
+import { Route as OauthGoogleMailReturnRouteImport } from './routes/oauth/google-mail/return'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -87,6 +88,11 @@ const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const OauthGoogleMailReturnRoute = OauthGoogleMailReturnRouteImport.update({
+  id: '/oauth/google-mail/return',
+  path: '/oauth/google-mail/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/replies': typeof AuthenticatedRepliesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
+  '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/replies': typeof AuthenticatedRepliesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
+  '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_authenticated/replies': typeof AuthenticatedRepliesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
+  '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/replies'
     | '/settings'
     | '/templates'
+    | '/oauth/google-mail/return'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/replies'
     | '/settings'
     | '/templates'
+    | '/oauth/google-mail/return'
   id:
     | '__root__'
     | '/'
@@ -176,12 +187,14 @@ export interface FileRouteTypes {
     | '/_authenticated/replies'
     | '/_authenticated/settings'
     | '/_authenticated/templates'
+    | '/oauth/google-mail/return'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  OauthGoogleMailReturnRoute: typeof OauthGoogleMailReturnRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTemplatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/oauth/google-mail/return': {
+      id: '/oauth/google-mail/return'
+      path: '/oauth/google-mail/return'
+      fullPath: '/oauth/google-mail/return'
+      preLoaderRoute: typeof OauthGoogleMailReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -313,6 +333,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  OauthGoogleMailReturnRoute: OauthGoogleMailReturnRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
