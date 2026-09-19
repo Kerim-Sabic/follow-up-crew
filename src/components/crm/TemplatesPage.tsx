@@ -15,6 +15,7 @@ import {
   TOKENS,
   type SenderSettings,
 } from "@/lib/email-outreach";
+import { exportListKit } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "./WorkspacePages";
 import { EmailBatchDialog } from "./EmailBatchDialog";
@@ -87,6 +88,7 @@ export function TemplatesPage() {
         description={`The full 7-email sequence, personalised for every lead in ${workspaceLabel}.`}
         actions={<>
           <Button variant="outline" onClick={() => { void navigator.clipboard.writeText(`${renderedSubject}\n\n${rendered}`); toast.success("Subject and email copied"); }}><Copy />Copy</Button>
+          <Button variant="outline" onClick={() => { exportListKit(emailable, "listkit-leads.csv"); toast.success(`${emailable.length.toLocaleString()} leads exported for ListKit`); }}><FileDown />Export for ListKit</Button>
           <Button onClick={() => setBatchOpen(true)}><Mail />Email 10 leads</Button>
         </>}
       />
