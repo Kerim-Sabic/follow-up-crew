@@ -79,6 +79,7 @@ export function ManageStagesDialog() {
     if (target < 0 || target >= order.length) return;
     const next = [...order];
     const [item] = next.splice(index, 1);
+    if (!item) return;
     next.splice(target, 0, item);
     applyOrder(next);
   };
@@ -90,6 +91,7 @@ export function ManageStagesDialog() {
     if (from < 0 || to < 0) return;
     const next = [...order];
     const [item] = next.splice(from, 1);
+    if (!item) return;
     next.splice(to, 0, item);
     applyOrder(next);
   };
