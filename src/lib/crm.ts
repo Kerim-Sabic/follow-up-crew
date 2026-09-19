@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-export type LeadStatus = Database["public"]["Enums"]["lead_status"];
+export type LeadStatus = string;
+export type BaseStatus = Database["public"]["Enums"]["lead_status"];
 export type Workspace = Database["public"]["Enums"]["workspace_key"];
 
 export const WORKSPACES: { value: Workspace; label: string; description: string }[] = [
