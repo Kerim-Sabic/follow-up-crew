@@ -189,7 +189,7 @@ export async function fetchNotes(leadId: string): Promise<LeadNote[]> {
 
 export async function updateLeadStatus(ids: string[], status: LeadStatus, userId: string) {
   const patch: Database["public"]["Tables"]["leads"]["Update"] = {
-    status,
+    stage: status,
     last_touched_at: new Date().toISOString(),
     last_touched_by: userId,
   };
