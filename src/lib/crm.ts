@@ -234,7 +234,7 @@ export async function createLead(input: NewLeadInput, userId: string, workspace:
       niche: input.niche?.trim() || null,
       instagram_url: input.instagram_url?.trim() || `https://instagram.com/${username}`,
       match_note: input.match_note?.trim() || null,
-      status,
+      stage: status,
       owner_id: status === "not_contacted" ? null : userId,
       last_touched_at: status === "not_contacted" ? null : new Date().toISOString(),
       last_touched_by: status === "not_contacted" ? null : userId,
@@ -259,7 +259,7 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
       niche: input.niche?.trim() || null,
       instagram_url: input.instagram_url?.trim() || `https://instagram.com/${username}`,
       match_note: input.match_note?.trim() || null,
-      status: "not_contacted" as LeadStatus,
+      stage: "not_contacted",
     };
   });
   const { error } = await supabase.from("leads").insert(rows);
