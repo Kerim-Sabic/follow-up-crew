@@ -55,6 +55,104 @@ export function statusMeta(status: LeadStatus) {
   return STATUSES.find((s) => s.value === status) ?? STATUSES[0]!;
 }
 
+// ---------- custom stages ----------
+
+export type Stage = Database["public"]["Tables"]["lead_stages"]["Row"];
+
+export type StageMeta = {
+  value: string;
+  label: string;
+  color: string;
+  className: string;
+  dot: string;
+  isBuiltin: boolean;
+  id?: string;
+};
+
+export const STAGE_COLORS: { value: string; label: string; className: string; dot: string }[] = [
+  { value: "slate", label: "Grey", className: "bg-slate-500/12 text-slate-600 dark:text-slate-300", dot: "bg-slate-500" },
+  { value: "blue", label: "Blue", className: "bg-blue-500/12 text-blue-600 dark:text-blue-300", dot: "bg-blue-500" },
+  { value: "violet", label: "Violet", className: "bg-violet-500/12 text-violet-600 dark:text-violet-300", dot: "bg-violet-500" },
+  { value: "emerald", label: "Green", className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300", dot: "bg-emerald-500" },
+  { value: "amber", label: "Amber", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300", dot: "bg-amber-500" },
+  { value: "rose", label: "Red", className: "bg-rose-500/12 text-rose-600 dark:text-rose-300", dot: "bg-rose-500" },
+  { value: "cyan", label: "Cyan", className: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-300", dot: "bg-cyan-500" },
+  { value: "orange", label: "Orange", className: "bg-orange-500/14 text-orange-600 dark:text-orange-300", dot: "bg-orange-500" },
+];
+
+export function colorMeta(color: string) {
+  return STAGE_COLORS.find((item) => item.value === color) ?? STAGE_COLORS[0]!;
+}
+
+export function toStageMeta(stage: Stage): StageMeta {
+  const color = colorMeta(stage.color);
+  return {
+    value: stage.key,
+    label: stage.label,
+    color: stage.color,
+    className: color.className,
+    dot: color.dot,
+    isBuiltin: stage.is_builtin,
+    id: stage.id,
+  };
+}
+
+export function leadStage(lead: Pick<Lead, "stage" | "status">) {
+  return lead.stage ?? lead.status;
+}
+
+export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
+  const { data, error } = await supabase
+    .from("lead_stages")
+    .select("*")
+    .eq("workspace", workspace)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export function stageKey(label: string) {
+  const base = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return (base || "stage") + "_" + Math.random().toString(36).slice(2, 6);
+}
+
+export async function createStage(
+  workspace: Workspace,
+  input: { label: string; color: string; base_status?: BaseStatus; position: number },
+) {
+  const { data, error } = await supabase
+    .from("lead_stages")
+    .insert({
+      workspace,
+      key: stageKey(input.label),
+      label: input.label.trim(),
+      color: input.color,
+      position: input.position,
+      is_builtin: false,
+      base_status: input.base_status ?? "contacted",
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function renameStage(id: string, patch: { label?: string; color?: string }) {
+  const { error } = await supabase.from("lead_stages").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteStage(stage: Stage) {
+  const { error: moveError } = await supabase
+    .from("leads")
+    .update({ stage: "not_contacted" })
+    .eq("workspace", stage.workspace)
+    .eq("stage", stage.key);
+  if (moveError) throw moveError;
+  const { error } = await supabase.from("lead_stages").delete().eq("id", stage.id);
+  if (error) throw error;
+}
+
 const PAGE = 1000;
 
 export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
