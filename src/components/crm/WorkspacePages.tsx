@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, ArrowRight, Check, Clock3, Copy, ExternalLink, Inbox, MessageSquareText, Plus, Send, Target, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useWorkspace } from "@/lib/workspace";
+import { useOptimisticStage, useWorkspace } from "@/lib/workspace";
 import { leadStage, fetchNotes, formatWhen, STATUSES, updateLeadStatus, type Lead, type LeadStatus } from "@/lib/crm";
 import { EMAIL_SEQUENCE, SUBJECT_LINES } from "@/lib/email-templates";
 import { Button } from "@/components/ui/button";
