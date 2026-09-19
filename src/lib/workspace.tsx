@@ -38,7 +38,7 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [activeLeadSnapshot, setActiveLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY) as Workspace | null;
