@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Mail, RefreshCw, Send } from "lucide-react";
+import { Loader2, Mail, RefreshCw, Search, Send } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -39,6 +39,8 @@ export function InboxPage() {
 
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [tab, setTab] = useState<"replies" | "sent" | "all">("replies");
+  const [search, setSearch] = useState("");
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["inbox", workspace, user?.id],
@@ -70,6 +72,9 @@ export function InboxPage() {
           id,
           messages: sorted,
           latest: sorted[sorted.length - 1]!,
+          first: sorted[0]!,
+          sentCount: sorted.filter((item) => item.direction === "out").length,
+          replyCount: incoming.length,
           hasReply: incoming.length > 0,
           unread: incoming.some((item) => !item.is_read),
           lastIncoming: incoming[incoming.length - 1] ?? null,
@@ -78,9 +83,36 @@ export function InboxPage() {
       .sort((a, b) => (b.latest.sent_at ?? "").localeCompare(a.latest.sent_at ?? ""));
   }, [messages]);
 
-  const replyThreads = threads.filter((thread) => thread.hasReply);
-  const active = threads.find((thread) => thread.id === openThread) ?? null;
   const leadOf = (id: string | null) => leads.find((lead) => lead.id === id);
+  const replyThreads = threads.filter((thread) => thread.hasReply);
+  const sentThreads = threads.filter((thread) => thread.sentCount > 0);
+
+  const visible = useMemo(() => {
+    const base = tab === "replies" ? replyThreads : tab === "sent" ? sentThreads : threads;
+    const query = search.trim().toLowerCase();
+    if (!query) return base;
+    return base.filter((thread) => {
+      const lead = leadOf(thread.latest.lead_id);
+      return [
+        lead?.full_name,
+        lead?.username,
+        lead?.email,
+        thread.latest.subject,
+        thread.latest.to_email,
+        thread.latest.from_email,
+        thread.latest.snippet,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [tab, search, threads, replyThreads, sentThreads, leads]);
+
+  const active = threads.find((thread) => thread.id === openThread) ?? null;
+  const TABS = [
+    { key: "replies" as const, label: "Replies", count: replyThreads.length },
+    { key: "sent" as const, label: "Sent", count: sentThreads.length },
+    { key: "all" as const, label: "All", count: threads.length },
+  ];
 
   const reply = useMutation({
     mutationFn: async () => {
@@ -111,7 +143,7 @@ export function InboxPage() {
     <div className="mx-auto max-w-[1800px] space-y-4 px-4 py-5 lg:px-6">
       <PageHeader
         title="Inbox"
-        description="Replies from the leads you emailed, in the mailbox you sent from."
+        description="Everything you sent and every reply, in the mailbox you sent from."
         actions={
           <Button size="sm" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
             {refresh.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}Check replies
@@ -124,18 +156,42 @@ export function InboxPage() {
       {connected.length === 0 ? null : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
           <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
-              {replyThreads.length} conversation{replyThreads.length === 1 ? "" : "s"} with a reply
-            </p>
+            <div className="space-y-2 border-b border-border p-2">
+              <div className="flex gap-1">
+                {TABS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setTab(item.key)}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${tab === item.key ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}
+                  >
+                    {item.label} <span className="text-[11px] opacity-70">{item.count}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search name, email or subject"
+                  className="w-full rounded-md border border-input bg-card py-1.5 pl-8 pr-2 text-xs outline-none focus:ring-2 focus:ring-ring/30"
+                />
+              </div>
+            </div>
             {isLoading ? (
               <p className="p-4 text-xs text-muted-foreground">Loading…</p>
-            ) : replyThreads.length === 0 ? (
+            ) : visible.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
-                No replies yet. Send a batch from Templates, then press "Check replies".
+                {search.trim()
+                  ? "Nothing matches that search."
+                  : tab === "sent"
+                    ? "Nothing sent from this mailbox yet. Send a batch from Templates."
+                    : "No replies yet. Send a batch from Templates, then press \"Check replies\"."}
               </p>
             ) : (
               <ul className="max-h-[60vh] overflow-y-auto">
-                {replyThreads.map((thread) => {
+                {visible.map((thread) => {
                   const lead = leadOf(thread.latest.lead_id);
                   return (
                     <li key={thread.id}>
@@ -148,14 +204,19 @@ export function InboxPage() {
                           {lead ? <LeadAvatar username={lead.username} size="sm" /> : null}
                           {thread.unread ? <span className="size-2 shrink-0 rounded-full bg-primary" /> : null}
                           <span className="truncate text-[13px] font-medium">
-                            {lead?.full_name || lead?.username || thread.lastIncoming?.from_email}
+                            {lead?.full_name || lead?.username || thread.latest.to_email || thread.lastIncoming?.from_email}
                           </span>
                           <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
                             {formatWhen(thread.latest.sent_at)}
                           </span>
                         </span>
-                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {thread.lastIncoming?.snippet || thread.latest.subject}
+                        <span className="mt-0.5 flex items-center gap-1.5">
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${thread.hasReply ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground"}`}>
+                            {thread.hasReply ? `${thread.replyCount} repl${thread.replyCount === 1 ? "y" : "ies"}` : thread.latest.direction === "out" ? "Sent" : "Received"}
+                          </span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {thread.lastIncoming?.snippet || thread.latest.subject}
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -172,7 +233,9 @@ export function InboxPage() {
               <>
                 <h2 className="text-sm font-semibold">{active.latest.subject}</h2>
                 <p className="text-xs text-muted-foreground">
-                  {leadOf(active.latest.lead_id)?.email ?? active.lastIncoming?.from_email}
+                  {leadOf(active.latest.lead_id)?.email ?? active.latest.to_email ?? active.lastIncoming?.from_email}
+                  {" · "}
+                  {active.sentCount} sent · {active.replyCount} received
                 </p>
                 <div className="mt-3 max-h-[42vh] space-y-3 overflow-y-auto">
                   {active.messages.map((message) => (
@@ -193,7 +256,8 @@ export function InboxPage() {
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     rows={4}
-                    placeholder="Write your reply…"
+                    placeholder={active.lastIncoming ? "Write your reply…" : "They haven't replied yet — nothing to reply to in this thread."}
+                    disabled={!active.lastIncoming}
                     className="w-full rounded-md border border-input bg-card p-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                   />
                   <div className="flex justify-end">
