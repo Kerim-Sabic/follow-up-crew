@@ -297,3 +297,36 @@ export function extractJson<T>(text: string): T {
   if (start === -1 || end === -1) throw new Error("Hermes did not return usable data.");
   return JSON.parse(candidate.slice(start, end + 1)) as T;
 }
+
+/**
+ * Pull complete top-level objects out of a partially-streamed JSON array so the
+ * UI can show results while the model is still writing.
+ */
+export function parsePartialObjects<T>(text: string): T[] {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*)/);
+  const source = fenced?.[1] ?? text;
+  const out: T[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') { inString = true; continue; }
+    if (char === "{") { if (depth === 0) start = i; depth += 1; continue; }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && start !== -1) {
+        try { out.push(JSON.parse(source.slice(start, i + 1)) as T); } catch { /* skip */ }
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
