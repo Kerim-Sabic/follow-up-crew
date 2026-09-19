@@ -13,16 +13,18 @@ export function LeadBoard({
   ownerName,
   onOpen,
   onStatusChange,
+  onAddStage,
 }: {
   leads: Lead[];
   ownerName: (id: string | null) => string;
   onOpen: (lead: Lead) => void;
   onStatusChange: (ids: string[], status: LeadStatus) => void;
+  onAddStage: () => void;
 }) {
   const [dragOver, setDragOver] = useState<LeadStatus | null>(null);
 
   return (
-    <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+    <div className="flex gap-3 overflow-x-auto pb-2">
       {STATUSES.map((status) => {
         const columnLeads = leads.filter((lead) => leadStage(lead) === status.value);
         return (
@@ -40,7 +42,7 @@ export function LeadBoard({
               if (id) onStatusChange([id], status.value);
             }}
             className={cn(
-              "flex max-h-[calc(100vh-190px)] min-h-[480px] flex-col rounded-lg border border-border bg-secondary/30 transition-colors",
+              "flex max-h-[calc(100vh-190px)] min-h-[480px] w-[280px] shrink-0 flex-col rounded-lg border border-border bg-secondary/30 transition-colors",
               dragOver === status.value && "border-primary/60 bg-accent/50",
             )}
           >
@@ -84,6 +86,12 @@ export function LeadBoard({
           </section>
         );
       })}
+      <button
+        onClick={onAddStage}
+        className="flex h-11 w-[200px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-foreground"
+      >
+        + Add stage
+      </button>
     </div>
   );
 }
