@@ -1,3 +1,3 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TemplatesPage } from "@/components/crm/WorkspacePages";
+import { TemplatesPage } from "@/components/crm/TemplatesPage";
 export const Route = createFileRoute("/_authenticated/templates")({ head: () => ({ meta: [{ title: "Templates — Outreach CRM" }, { name: "description", content: "Prepare reusable outreach messages." }, { property: "og:title", content: "Templates — Outreach CRM" }, { property: "og:description", content: "Prepare reusable outreach messages." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: TemplatesPage });
