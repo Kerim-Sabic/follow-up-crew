@@ -86,6 +86,10 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   const rawStages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
   const stages = useMemo(() => rawStages.map(toStageMeta), [rawStages]);
   setStatusRegistry(stages);
+  const activeLead = useMemo(() => {
+    if (!activeLeadSnapshot) return null;
+    return leads.find((lead) => lead.id === activeLeadSnapshot.id) ?? activeLeadSnapshot;
+  }, [activeLeadSnapshot, leads]);
   const value = useMemo<WorkspaceValue>(() => ({
     workspace,
     setWorkspace,
