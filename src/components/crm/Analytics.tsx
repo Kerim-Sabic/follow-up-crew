@@ -25,11 +25,11 @@ export function Analytics({
       LeadStatus,
       number
     >;
-    for (const lead of leads) counts[leadStage(lead)] += 1;
+    for (const lead of leads) counts[leadStage(lead)] = (counts[leadStage(lead)] ?? 0) + 1;
 
     const total = leads.length;
-    const reachedOut = total - counts.not_contacted;
-    const replied = counts.replied + counts.deal;
+    const reachedOut = total - (counts["not_contacted"] ?? 0);
+    const replied = (counts["replied"] ?? 0) + (counts["deal"] ?? 0);
 
     const days: { label: string; count: number }[] = [];
     const now = new Date();
@@ -56,7 +56,7 @@ export function Analytics({
       .filter((row) => row.touched > 0)
       .sort((a, b) => b.touched - a.touched);
 
-    return { counts, total, reachedOut, replied, deals: counts.deal, days, team };
+    return { counts, total, reachedOut, replied, deals: counts["deal"] ?? 0, days, team };
   }, [leads, profiles]);
 
   const peak = Math.max(1, ...stats.days.map((day) => day.count));
@@ -119,7 +119,7 @@ export function Analytics({
               <div className="space-y-2">
                 <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface">
                   {STATUSES.map((status) => {
-                    const share = pct(stats.counts[status.value], stats.total);
+                    const share = pct(stats.counts[status.value] ?? 0, stats.total);
                     if (!share) return null;
                     return (
                       <div
@@ -152,10 +152,10 @@ export function Analytics({
                           </span>
                         </span>
                         <span className="mt-0.5 block font-display text-xl tabular-nums text-foreground">
-                          {stats.counts[status.value].toLocaleString()}
+                          {(stats.counts[status.value] ?? 0).toLocaleString()}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                          {pct(stats.counts[status.value], stats.total)}%
+                          {pct(stats.counts[status.value] ?? 0, stats.total)}%
                         </span>
                       </button>
                     );
