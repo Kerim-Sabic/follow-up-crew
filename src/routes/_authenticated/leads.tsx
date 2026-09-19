@@ -32,7 +32,7 @@ type Sort = "number" | "recent" | "username";
 function LeadsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { leads, profiles, ownerName, isLoading, error, setActiveLead, setAddLeadOpen } = useWorkspace();
+  const { leads, profiles, ownerName, isLoading, error, setActiveLead, setAddLeadOpen, setManageStagesOpen } = useWorkspace();
   const [view, setView] = useState<"table" | "board">(() => typeof localStorage === "undefined" ? "table" : (localStorage.getItem("crm-view") as "table" | "board") || "table");
   const [search, setSearch] = useState("");
   const [deferredSearch, setDeferredSearch] = useState("");
