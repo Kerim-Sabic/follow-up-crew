@@ -5,7 +5,7 @@ import { Columns3, Download, Filter, Instagram, LayoutList, Plus, Search, Slider
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useWorkspace } from "@/lib/workspace";
-import { STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { leadStage, STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
 import { SwipeReview, type SwipeDecision } from "@/components/crm/SwipeReview";
 import type { Lead } from "@/lib/crm";
@@ -55,10 +55,10 @@ function LeadsPage() {
     window.addEventListener("keydown", onKeyDown); return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const counts = useMemo(() => Object.fromEntries(STATUSES.map((item) => [item.value, leads.filter((lead) => lead.status === item.value).length])) as Record<LeadStatus, number>, [leads]);
+  const counts = useMemo(() => Object.fromEntries(STATUSES.map((item) => [item.value, leads.filter((lead) => leadStage(lead) === item.value).length])) as Record<LeadStatus, number>, [leads]);
   const filtered = useMemo(() => {
     const result = leads.filter((lead) => {
-      if (status !== "all" && lead.status !== status) return false;
+      if (status !== "all" && leadStage(lead) !== status) return false;
       if (owner === "mine" && lead.owner_id !== user?.id) return false;
       if (owner === "unassigned" && lead.owner_id) return false;
       if (hasEmail === "yes" && !lead.email) return false;
@@ -73,13 +73,13 @@ function LeadsPage() {
   const clearFilters = () => { setStatus("all"); setOwner("all"); setHasEmail("all"); setSearch(""); };
   const exportSelected = () => {
     const rows = leads.filter((lead) => selected.has(lead.id));
-    const csv = ["username,email,status", ...rows.map((lead) => `"${lead.username}","${lead.email ?? ""}","${lead.status}"`)].join("\n");
+    const csv = ["username,email,status", ...rows.map((lead) => `"${lead.username}","${lead.email ?? ""}","${leadStage(lead)}"`)].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "selected-leads.csv"; anchor.click(); URL.revokeObjectURL(url);
   };
   const openNextInstagram = (count: number) => {
     const seen = new Set<string>(JSON.parse(localStorage.getItem("crm.opened-today") ?? "[]") as string[]);
     const queue = filtered
-      .filter((lead) => lead.status === "not_contacted" && !seen.has(lead.id))
+      .filter((lead) => leadStage(lead) === "not_contacted" && !seen.has(lead.id))
       .slice(0, count);
     if (queue.length === 0) { toast.info("No fresh not-contacted leads left in this view."); return; }
     let blocked = 0;

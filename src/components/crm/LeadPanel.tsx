@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, ExternalLink, Mail, MessageSquare, StickyNote, UserRound, Clock3 } from "lucide-react";
-import {
+import { leadStage,
   addNote,
   claimLead,
   fetchNotes,
@@ -60,7 +60,7 @@ export function LeadPanel({
           <div className="flex items-center gap-3"><LeadAvatar username={lead.username} size="lg" /><div className="min-w-0"><SheetTitle className="truncate text-base">@{lead.username.replace(/^@/, "")}</SheetTitle><SheetDescription>Instagram · Lead #{lead.number ?? "—"}</SheetDescription></div></div>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <StatusSelect
-              value={lead.status}
+              value={leadStage(lead)}
               onChange={(status) => onStatusChange([lead.id], status)}
             />
             <Button variant="outline" size="sm"
@@ -94,9 +94,9 @@ export function LeadPanel({
                 <Row label="Date added" value={new Date(lead.created_at).toLocaleDateString()} />
               </dl></section>
               {lead.match_note ? <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Why this lead is interesting</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{lead.match_note}</p></section> : null}
-              <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Next action</h3><div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-secondary/40 p-3"><span className="flex size-8 items-center justify-center rounded-md bg-card text-primary"><MessageSquare className="size-4" /></span><div className="flex-1"><p className="text-sm font-medium">{lead.status === "not_contacted" ? "Start outreach" : lead.status === "contacted" ? "Follow up" : "Review conversation"}</p><p className="text-xs text-muted-foreground">Keep the relationship moving.</p></div></div></section>
+              <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Next action</h3><div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-secondary/40 p-3"><span className="flex size-8 items-center justify-center rounded-md bg-card text-primary"><MessageSquare className="size-4" /></span><div className="flex-1"><p className="text-sm font-medium">{leadStage(lead) === "not_contacted" ? "Start outreach" : leadStage(lead) === "contacted" ? "Follow up" : "Review conversation"}</p><p className="text-xs text-muted-foreground">Keep the relationship moving.</p></div></div></section>
             </TabsContent>
-            <TabsContent value="activity" className="mt-0"><div className="space-y-5 border-l border-border pl-5"><Timeline icon={<Clock3 />} title={lead.last_touched_at ? `Stage updated to ${lead.status.replace("_", " ")}` : "Lead added to workspace"} when={formatWhen(lead.last_touched_at ?? lead.created_at)} /><Timeline icon={<UserRound />} title={lead.owner_id ? `Assigned to ${ownerName(lead.owner_id)}` : "Currently unassigned"} when={formatWhen(lead.created_at)} /></div></TabsContent>
+            <TabsContent value="activity" className="mt-0"><div className="space-y-5 border-l border-border pl-5"><Timeline icon={<Clock3 />} title={lead.last_touched_at ? `Stage updated to ${leadStage(lead).replace("_", " ")}` : "Lead added to workspace"} when={formatWhen(lead.last_touched_at ?? lead.created_at)} /><Timeline icon={<UserRound />} title={lead.owner_id ? `Assigned to ${ownerName(lead.owner_id)}` : "Currently unassigned"} when={formatWhen(lead.created_at)} /></div></TabsContent>
             <TabsContent value="notes" className="mt-0">
             <h3 className="text-xs font-semibold">Notes & replies</h3>
             <form

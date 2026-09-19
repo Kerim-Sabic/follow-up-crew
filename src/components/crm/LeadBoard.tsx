@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Instagram } from "lucide-react";
-import { STATUSES, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
+import { leadStage, STATUSES, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
 import { cn } from "@/lib/utils";
 import { LeadAvatar } from "./LeadAvatar";
 import { StatusSelect } from "./StatusSelect";
@@ -24,7 +24,7 @@ export function LeadBoard({
   return (
     <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
       {STATUSES.map((status) => {
-        const columnLeads = leads.filter((lead) => lead.status === status.value);
+        const columnLeads = leads.filter((lead) => leadStage(lead) === status.value);
         return (
           <section
             key={status.value}
@@ -66,7 +66,7 @@ export function LeadBoard({
                    onKeyDown={(event) => { if (event.key === "Enter") onOpen(lead); }}
                 >
                    <div className="flex items-center gap-2.5"><LeadAvatar username={lead.username} size="sm" /><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-foreground">@{lead.username.replace(/^@/, "")}</p><p className="truncate text-[11px] text-muted-foreground">{lead.email ?? "Instagram"}</p></div><a href={instagramUrl(lead)} target="_blank" rel="noopener noreferrer" title="Open Instagram" onClick={(event) => event.stopPropagation()} className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"><Instagram className="size-4" /></a></div>
-                   <div className="mt-3 flex items-center justify-between gap-2" onClick={(event) => event.stopPropagation()}><StatusSelect value={lead.status} onChange={(next) => onStatusChange([lead.id], next)} /><span className="text-[11px] text-muted-foreground">{formatWhen(lead.last_touched_at)}</span></div>
+                   <div className="mt-3 flex items-center justify-between gap-2" onClick={(event) => event.stopPropagation()}><StatusSelect value={leadStage(lead)} onChange={(next) => onStatusChange([lead.id], next)} /><span className="text-[11px] text-muted-foreground">{formatWhen(lead.last_touched_at)}</span></div>
                    <p className="mt-2 truncate border-t border-border pt-2 text-[11px] text-muted-foreground">{ownerName(lead.owner_id)}</p>
                 </article>
               ))}

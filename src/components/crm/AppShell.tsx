@@ -9,7 +9,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
-import { updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
+import { leadStage, updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
 import { LeadPanel } from "./LeadPanel";
@@ -48,8 +48,8 @@ function ShellContent() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const profile = profiles.find((item) => item.id === user?.id);
   const pageTitle = groups.flatMap((group) => group.items).find((item) => item.to === pathname)?.label ?? "Workspace";
-  const replied = leads.filter((lead) => lead.status === "replied").length;
-  const followups = leads.filter((lead) => lead.status === "contacted" && lead.last_touched_at && Date.now() - new Date(lead.last_touched_at).getTime() > 2 * 86400000).length;
+  const replied = leads.filter((lead) => leadStage(lead) === "replied").length;
+  const followups = leads.filter((lead) => leadStage(lead) === "contacted" && lead.last_touched_at && Date.now() - new Date(lead.last_touched_at).getTime() > 2 * 86400000).length;
   const statusMutation = useMutation({
     mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { STATUSES, type Lead, type LeadStatus, type Profile } from "@/lib/crm";
+import { leadStage, STATUSES, type Lead, type LeadStatus, type Profile } from "@/lib/crm";
 import { cn } from "@/lib/utils";
 
 function pct(part: number, whole: number) {
@@ -25,7 +25,7 @@ export function Analytics({
       LeadStatus,
       number
     >;
-    for (const lead of leads) counts[lead.status] += 1;
+    for (const lead of leads) counts[leadStage(lead)] += 1;
 
     const total = leads.length;
     const reachedOut = total - counts.not_contacted;
@@ -46,11 +46,11 @@ export function Analytics({
     const team = profiles
       .map((profile) => {
         const owned = leads.filter((lead) => lead.owner_id === profile.id);
-        const touched = owned.filter((lead) => lead.status !== "not_contacted").length;
+        const touched = owned.filter((lead) => leadStage(lead) !== "not_contacted").length;
         const replies = owned.filter(
-          (lead) => lead.status === "replied" || lead.status === "deal",
+          (lead) => leadStage(lead) === "replied" || leadStage(lead) === "deal",
         ).length;
-        const deals = owned.filter((lead) => lead.status === "deal").length;
+        const deals = owned.filter((lead) => leadStage(lead) === "deal").length;
         return { name: profile.display_name, touched, replies, deals };
       })
       .filter((row) => row.touched > 0)
