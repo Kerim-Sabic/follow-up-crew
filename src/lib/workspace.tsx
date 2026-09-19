@@ -38,7 +38,7 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [activeLeadSnapshot, setActiveLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY) as Workspace | null;
@@ -86,6 +86,10 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   const rawStages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
   const stages = useMemo(() => rawStages.map(toStageMeta), [rawStages]);
   setStatusRegistry(stages);
+  const activeLead = useMemo(() => {
+    if (!activeLeadSnapshot) return null;
+    return leads.find((lead) => lead.id === activeLeadSnapshot.id) ?? activeLeadSnapshot;
+  }, [activeLeadSnapshot, leads]);
   const value = useMemo<WorkspaceValue>(() => ({
     workspace,
     setWorkspace,
@@ -120,4 +124,26 @@ export function useWorkspace() {
   const value = useContext(WorkspaceContext);
   if (!value) throw new Error("useWorkspace must be used inside WorkspaceProvider");
   return value;
+}
+
+/** Patches every cached leads list immediately so a stage change shows up without waiting for a refetch. */
+export function useOptimisticStage() {
+  const queryClient = useQueryClient();
+  return (ids: string[], stage: string, userId: string) => {
+    const set = new Set(ids);
+    const now = new Date().toISOString();
+    queryClient.setQueriesData<Lead[]>({ queryKey: ["leads"] }, (old) =>
+      old?.map((lead) =>
+        set.has(lead.id)
+          ? {
+              ...lead,
+              stage,
+              last_touched_at: now,
+              last_touched_by: userId || lead.last_touched_by,
+              owner_id: stage !== "not_contacted" && userId ? userId : lead.owner_id,
+            }
+          : lead,
+      ),
+    );
+  };
 }

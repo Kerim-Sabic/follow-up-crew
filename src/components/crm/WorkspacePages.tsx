@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, ArrowRight, Check, Clock3, Copy, ExternalLink, Inbox, MessageSquareText, Plus, Send, Target, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useWorkspace } from "@/lib/workspace";
+import { useOptimisticStage, useWorkspace } from "@/lib/workspace";
 import { leadStage, fetchNotes, formatWhen, STATUSES, updateLeadStatus, type Lead, type LeadStatus } from "@/lib/crm";
 import { EMAIL_SEQUENCE, SUBJECT_LINES } from "@/lib/email-templates";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,14 @@ export function PageHeader({ title, description, actions }: { title: string; des
 }
 
 function useStatusMutation() {
-  const { user } = useAuth(); const queryClient = useQueryClient();
-  return useMutation({ mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["leads"] }); toast.success("Lead updated"); }, onError: () => toast.error("Couldn't update this lead. Try again.") });
+  const { user } = useAuth(); const queryClient = useQueryClient(); const optimistic = useOptimisticStage();
+  return useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""),
+    onMutate: ({ ids, status }) => optimistic(ids, status, user?.id ?? ""),
+    onSuccess: () => toast.success("Lead updated"),
+    onError: () => { queryClient.invalidateQueries({ queryKey: ["leads"] }); toast.error("Couldn't update this lead. Try again."); },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
+  });
 }
 
 export function DashboardPage() {

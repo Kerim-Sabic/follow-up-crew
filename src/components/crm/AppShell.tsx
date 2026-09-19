@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
+import { WorkspaceProvider, useOptimisticStage, useWorkspace } from "@/lib/workspace";
 import { leadStage, updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
@@ -51,9 +51,11 @@ function ShellContent() {
   const pageTitle = groups.flatMap((group) => group.items).find((item) => item.to === pathname)?.label ?? "Workspace";
   const replied = leads.filter((lead) => leadStage(lead) === "replied").length;
   const followups = leads.filter((lead) => leadStage(lead) === "contacted" && lead.last_touched_at && Date.now() - new Date(lead.last_touched_at).getTime() > 2 * 86400000).length;
+  const optimisticStage = useOptimisticStage();
   const statusMutation = useMutation({
     mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
+    onMutate: ({ ids, status }) => optimisticStage(ids, status, user?.id ?? ""),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
   });
 
   async function signOut() {
