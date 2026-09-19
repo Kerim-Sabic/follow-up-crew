@@ -93,17 +93,25 @@ export function HermesPage() {
 
   async function test() {
     note("Testing connection…");
-    await guard("test", async () => {
-      const list = await hermesModels(settings);
-      setModels(list);
-      setStatus("ok");
-      note(list.length ? `Connected. ${list.length} models available.` : "Connected.");
-      toast.success(list.length ? `Connected. Models: ${list.slice(0, 4).join(", ")}` : "Connected to Hermes.");
-      if (list.length && !list.includes(settings.model)) {
-        toast.warning(`"${settings.model}" isn't on the list — pick one of the models below.`);
-      }
-    }).catch(() => { setStatus("error"); note("Connection failed."); });
+    setBusy("test");
+    try {
+      const result = await hermesTestConnection(settings);
+      setModels(result.models);
+      setLatency(result.latencyMs || null);
+      setStatus(result.ok ? "ok" : "error");
+      setBlocked(result.kind === "local-network-denied");
+      note(result.message);
+      if (result.ok) toast.success(result.message); else toast.error(result.message);
+    } catch (error) {
+      setStatus("error");
+      const message = error instanceof Error ? error.message : "Hermes could not be reached.";
+      note(message);
+      toast.error(message);
+    } finally {
+      setBusy(null);
+    }
   }
+
 
   async function expand() {
     setSuggestions([]);
