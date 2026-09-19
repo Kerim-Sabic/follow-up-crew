@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, BarChart3, Bell, Bot, ChevronLeft, CircleHelp, Columns3, Home, Inbox,
+  Activity, BarChart3, Bell, Bot, ChevronLeft, CircleHelp, Columns3, Home, Inbox, Mail,
   Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Plus,
   Search, Settings, Users, Zap,
 } from "lucide-react";
@@ -22,6 +22,7 @@ const groups = [
     { to: "/dashboard", label: "Home", icon: Home },
     { to: "/leads", label: "Leads", icon: Users },
     { to: "/outreach", label: "Outreach", icon: Zap },
+    { to: "/inbox", label: "Inbox", icon: Mail },
     { to: "/replies", label: "Replies", icon: Inbox },
     { to: "/follow-ups", label: "Follow-ups", icon: Activity },
     { to: "/pipeline", label: "Pipeline", icon: Columns3 },
