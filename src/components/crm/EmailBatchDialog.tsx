@@ -36,8 +36,8 @@ export function EmailBatchDialog({
   onClose: () => void;
   step?: number;
   variant?: number;
-  bodyOverride?: string;
-  subjectOverride?: string;
+  bodyOverride?: string | undefined;
+  subjectOverride?: string | undefined;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
