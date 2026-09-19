@@ -129,3 +129,31 @@ export function openCompose(url: string, client: MailClient) {
 export function hasEmail(lead: Lead) {
   return Boolean(lead.email && /.+@.+\..+/.test(lead.email));
 }
+
+// ---------- reply-rate coaching ----------
+
+export type EmailCheck = { ok: boolean; label: string; hint: string };
+
+const SPAM_WORDS = ["guarantee", "free", "risk-free", "buy now", "limited time", "act now", "100%", "cheap", "click here", "offer expires"];
+
+/** Honest heuristics from cold-email best practice — no fake predictions. */
+export function analyzeEmail(subject: string, body: string): { checks: EmailCheck[]; score: number } {
+  const words = body.trim().split(/\s+/).filter(Boolean).length;
+  const subjectWords = subject.trim().split(/\s+/).filter(Boolean).length;
+  const lower = `${subject} ${body}`.toLowerCase();
+  const spam = SPAM_WORDS.filter((word) => lower.includes(word));
+  const links = (body.match(/https?:\/\//g) ?? []).length;
+  const questions = (body.match(/\?/g) ?? []).length;
+
+  const checks: EmailCheck[] = [
+    { ok: words >= 40 && words <= 140, label: `${words} words`, hint: "Short emails get the most replies — aim for 40–140 words." },
+    { ok: subjectWords > 0 && subjectWords <= 5, label: `Subject: ${subjectWords} words`, hint: "Keep subjects to 5 words or fewer so they survive mobile inboxes." },
+    { ok: /\{\{\s*(first_name|full_name|username|niche)\s*\}\}/i.test(body), label: "Personalised", hint: "Use a token like {{first_name}} or {{niche}} so each email feels written for them." },
+    { ok: questions >= 1, label: questions ? `${questions} question${questions === 1 ? "" : "s"}` : "No question", hint: "End with one easy question — a clear ask is the biggest reply driver." },
+    { ok: links === 0, label: links ? `${links} link${links === 1 ? "" : "s"}` : "No links", hint: "Links in a first email hurt deliverability. Save them for the reply." },
+    { ok: spam.length === 0, label: spam.length ? `Spam words: ${spam.join(", ")}` : "No spam words", hint: "Swap salesy wording for plain language." },
+    { ok: body.split(/\n\s*\n/).filter(Boolean).length >= 2, label: "Easy to skim", hint: "Break the email into short paragraphs." },
+  ];
+  const passed = checks.filter((check) => check.ok).length;
+  return { checks, score: Math.round((passed / checks.length) * 100) };
+}

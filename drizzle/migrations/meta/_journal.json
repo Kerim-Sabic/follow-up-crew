@@ -29,6 +29,13 @@
       "when": 1789777044006,
       "tag": "0003_allow_reordering_stages",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789782360300,
+      "tag": "0004_email_mailboxes_and_messages",
+      "breakpoints": true
     }
   ]
 }

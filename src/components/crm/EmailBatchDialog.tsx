@@ -19,6 +19,9 @@ import {
   MAIL_CLIENTS,
   type SenderSettings,
 } from "@/lib/email-outreach";
+import { useMailboxes, preferredMailbox, rememberMailbox } from "@/lib/mailboxes";
+import { sendLeadEmails } from "@/lib/mail.functions";
+import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -41,7 +44,9 @@ export function EmailBatchDialog({
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { leads, workspaceLabel } = useWorkspace();
+  const { leads, workspaceLabel, workspace } = useWorkspace();
+  const { connected } = useMailboxes();
+  const sendNow = useServerFn(sendLeadEmails);
   const optimistic = useOptimisticStage();
 
   const [sender, setSender] = useState<SenderSettings>(() => loadSender());
@@ -53,6 +58,10 @@ export function EmailBatchDialog({
   const [opened, setOpened] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [skipEmailedToday, setSkipEmailedToday] = useState(true);
+  const [mailboxId, setMailboxId] = useState<string>(() => preferredMailbox() ?? "");
+  const [sending, setSending] = useState(false);
+
+  const activeMailbox = connected.find((box) => box.id === mailboxId) ?? null;
 
   const template = EMAIL_SEQUENCE.find((item) => item.step === step) ?? EMAIL_SEQUENCE[0]!;
   const alreadyToday = useMemo(() => new Set(skipEmailedToday ? emailedToday() : []), [skipEmailedToday, open]);
@@ -110,6 +119,44 @@ export function EmailBatchDialog({
     }
   }
 
+  async function sendBatch() {
+    if (!activeMailbox) return;
+    setSending(true);
+    try {
+      const payload = batch.map((lead, index) => {
+        const draft = draftFor(lead, index);
+        return { leadId: lead.id, to: lead.email ?? "", subject: draft.subject, body: draft.body };
+      });
+      const result = await sendNow({ data: { mailboxId: activeMailbox.id, workspace, messages: payload } });
+      if (result.sent.length) {
+        optimistic(result.sent, "contacted", user?.id ?? "");
+        await updateLeadStatus(result.sent, "contacted", user?.id ?? "");
+        if (user?.id) {
+          await Promise.all(
+            result.sent.map((id) => {
+              const index = batch.findIndex((lead) => lead.id === id);
+              const draft = draftFor(batch[index]!, index);
+              return addNote(id, user.id, `Emailed from ${activeMailbox.email}: ${draft.subject}`);
+            }),
+          );
+        }
+        rememberEmailed(result.sent);
+        await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      }
+      if (result.failed.length) {
+        toast.error(`${result.failed.length} email${result.failed.length === 1 ? "" : "s"} failed to send.`);
+      }
+      if (result.sent.length) {
+        toast.success(`${result.sent.length} email${result.sent.length === 1 ? "" : "s"} sent from ${activeMailbox.email}`);
+        onClose();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't send this batch.");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-3xl">
@@ -122,7 +169,17 @@ export function EmailBatchDialog({
           <label className="text-xs text-muted-foreground">Your name<input className={`${inputClass} mt-1`} value={sender.name} onChange={(event) => setSender({ ...sender, name: event.target.value })} placeholder="Kerim" /></label>
           <label className="text-xs text-muted-foreground">How many<input type="number" min={1} max={50} className={`${inputClass} mt-1`} value={count} onChange={(event) => setCount(Math.max(1, Math.min(50, Number(event.target.value) || 1)))} /></label>
           <label className="text-xs text-muted-foreground">Send from
-            <select className={`${inputClass} mt-1`} value={sender.client} onChange={(event) => setSender({ ...sender, client: event.target.value as SenderSettings["client"] })}>
+            <select
+              className={`${inputClass} mt-1`}
+              value={mailboxId ? `box:${mailboxId}` : sender.client}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value.startsWith("box:")) { const id = value.slice(4); setMailboxId(id); rememberMailbox(id); return; }
+                setMailboxId("");
+                setSender({ ...sender, client: value as SenderSettings["client"] });
+              }}
+            >
+              {connected.map((box) => <option key={box.id} value={`box:${box.id}`}>{box.email} (send from the app)</option>)}
               {MAIL_CLIENTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>
@@ -169,11 +226,17 @@ export function EmailBatchDialog({
         )}
 
         <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">{opened.length} of {batch.length} drafts opened</span>
+          <span className="text-xs text-muted-foreground">{activeMailbox ? `Sending from ${activeMailbox.email}` : `${opened.length} of ${batch.length} drafts opened`}</span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => { saveSender(sender); toast.success("Saved on this device"); }}>Save my details</Button>
-            <Button variant="outline" onClick={openAll} disabled={batch.length === 0}><Send />Open all {batch.length}</Button>
-            <Button onClick={finish} disabled={saving || opened.length === 0}>{saving ? <Loader2 className="animate-spin" /> : <Check />}Mark {opened.length} contacted</Button>
+            {activeMailbox ? (
+              <Button onClick={sendBatch} disabled={sending || batch.length === 0}>{sending ? <Loader2 className="animate-spin" /> : <Send />}Send {batch.length} now</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={openAll} disabled={batch.length === 0}><Send />Open all {batch.length}</Button>
+                <Button onClick={finish} disabled={saving || opened.length === 0}>{saving ? <Loader2 className="animate-spin" /> : <Check />}Mark {opened.length} contacted</Button>
+              </>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
