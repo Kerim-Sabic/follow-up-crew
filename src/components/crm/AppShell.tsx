@@ -9,11 +9,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
-import { updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
+import { leadStage, updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
 import { LeadPanel } from "./LeadPanel";
 import { CommandMenu } from "./CommandMenu";
+import { ManageStagesDialog } from "./ManageStagesDialog";
 import { cn } from "@/lib/utils";
 
 const groups = [
@@ -48,8 +49,8 @@ function ShellContent() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const profile = profiles.find((item) => item.id === user?.id);
   const pageTitle = groups.flatMap((group) => group.items).find((item) => item.to === pathname)?.label ?? "Workspace";
-  const replied = leads.filter((lead) => lead.status === "replied").length;
-  const followups = leads.filter((lead) => lead.status === "contacted" && lead.last_touched_at && Date.now() - new Date(lead.last_touched_at).getTime() > 2 * 86400000).length;
+  const replied = leads.filter((lead) => leadStage(lead) === "replied").length;
+  const followups = leads.filter((lead) => leadStage(lead) === "contacted" && lead.last_touched_at && Date.now() - new Date(lead.last_touched_at).getTime() > 2 * 86400000).length;
   const statusMutation = useMutation({
     mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
@@ -108,6 +109,7 @@ function ShellContent() {
       <main className="min-w-0"><Outlet /></main>
     </div>
     <CommandMenu />
+    <ManageStagesDialog />
     {addLeadOpen && user ? <AddLeadDialog userId={user.id} onClose={() => setAddLeadOpen(false)} /> : null}
     {activeLead && user ? <LeadPanel lead={activeLead} userId={user.id} ownerName={(id) => id === user.id ? "You" : profiles.find((item) => item.id === id)?.display_name ?? "Unassigned"} onClose={() => setActiveLead(null)} onStatusChange={(ids, status) => statusMutation.mutate({ ids, status })} /> : null}
   </div>;

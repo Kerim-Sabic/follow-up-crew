@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Bot, CircleStop, Loader2, Plug, Save, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/lib/workspace";
-import { createLeads, updateLeadFields, type Lead, type NewLeadInput } from "@/lib/crm";
+import { leadStage, createLeads, updateLeadFields, type Lead, type NewLeadInput } from "@/lib/crm";
 import {
   DEFAULT_HERMES,
   extractJson,
@@ -204,7 +204,7 @@ export function HermesPage() {
       const summary = {
         workspace: workspaceLabel,
         total: leads.length,
-        byStatus: leads.reduce<Record<string, number>>((acc, lead) => ({ ...acc, [lead.status]: (acc[lead.status] ?? 0) + 1 }), {}),
+        byStatus: leads.reduce<Record<string, number>>((acc, lead) => ({ ...acc, [leadStage(lead)]: (acc[leadStage(lead)] ?? 0) + 1 }), {}),
       };
       await hermesChat(settings, [
         { role: "system", content: "You are an outreach assistant for a small team. Be concise and practical." },

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ExternalLink, Instagram, Mail, MessageSquarePlus } from "lucide-react";
-import { formatWhen, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
+import { leadStage, formatWhen, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
 import { StatusSelect } from "./StatusSelect";
 import { LeadAvatar } from "./LeadAvatar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -79,7 +79,7 @@ export function LeadTable({
                   </div>
                   <div className="min-w-0"><p className="truncate text-[13px] text-foreground">{lead.email ?? "No email"}</p><p className="truncate text-[11px] text-muted-foreground">{lead.niche ? `${lead.niche}${lead.score !== null && lead.score !== undefined ? ` · score ${lead.score}` : ""}` : "Instagram"}</p></div>
                   <StatusSelect
-                    value={lead.status}
+                    value={leadStage(lead)}
                     onChange={(status) => onStatusChange([lead.id], status)}
                   />
                   <p className="truncate text-xs text-muted-foreground">
@@ -89,7 +89,7 @@ export function LeadTable({
                     {formatWhen(lead.last_touched_at)}
                   </p>
                   <div className="flex items-center justify-end gap-0.5">
-                    <span className="text-xs text-muted-foreground group-hover:hidden">{lead.status === "not_contacted" ? "Contact" : lead.status === "contacted" ? "Follow up" : "Review"}</span>
+                    <span className="text-xs text-muted-foreground group-hover:hidden">{leadStage(lead) === "not_contacted" ? "Contact" : leadStage(lead) === "contacted" ? "Follow up" : "Review"}</span>
                     <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" title={`Open @${lead.username.replace(/^@/, "")} on Instagram`} asChild><a href={instagramUrl(lead)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}><Instagram /></a></Button>
                     <div className="hidden items-center group-hover:flex"><Button variant="ghost" size="icon" className="size-7" title="Open lead" onClick={(event) => { event.stopPropagation(); onOpen(lead); }}><ExternalLink /></Button>{lead.email ? <Button variant="ghost" size="icon" className="size-7" title="Email" asChild><a href={`mailto:${lead.email}`} onClick={(event) => event.stopPropagation()}><Mail /></a></Button> : null}<Button variant="ghost" size="icon" className="size-7" title="Add note" onClick={(event) => { event.stopPropagation(); onOpen(lead); }}><MessageSquarePlus /></Button></div>
                   </div>

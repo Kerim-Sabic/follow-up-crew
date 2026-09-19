@@ -3,7 +3,7 @@ import { Download, Instagram, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { instagramUrl, type Lead } from "@/lib/crm";
+import { leadStage, instagramUrl, type Lead } from "@/lib/crm";
 
 const PRESETS = [10, 20, 30, 50];
 
@@ -22,7 +22,7 @@ export function InstagramBatchDialog({
   const [opened, setOpened] = useState<Lead[]>([]);
 
   const queue = useMemo(
-    () => leads.filter((lead) => lead.status === "not_contacted").slice(0, count),
+    () => leads.filter((lead) => leadStage(lead) === "not_contacted").slice(0, count),
     [leads, count],
   );
 
