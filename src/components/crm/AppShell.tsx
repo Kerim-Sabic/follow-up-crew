@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
+import { WorkspaceProvider, useOptimisticStage, useWorkspace } from "@/lib/workspace";
 import { leadStage, updateLeadStatus, WORKSPACES, type LeadStatus, type Workspace } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
 import { AddLeadDialog } from "./AddLeadDialog";
