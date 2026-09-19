@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Columns3, Download, Filter, Instagram, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useWorkspace } from "@/lib/workspace";
+import { useOptimisticStage, useWorkspace } from "@/lib/workspace";
 import { leadStage, STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
 import { SwipeReview, type SwipeDecision } from "@/components/crm/SwipeReview";
