@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Mail, RotateCcw, Shuffle, Sparkles, Users } from "lucide-react";
+import { Copy, FileDown, Mail, RotateCcw, Shuffle, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/lib/workspace";
 import { leadStage, type Lead } from "@/lib/crm";
