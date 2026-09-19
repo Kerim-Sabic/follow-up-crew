@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Columns3, Download, Filter, Instagram, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
+import { Columns3, Download, FileDown, Filter, Instagram, LayoutList, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useOptimisticStage, useWorkspace } from "@/lib/workspace";
@@ -12,6 +12,7 @@ import type { Lead } from "@/lib/crm";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { LeadBoard } from "@/components/crm/LeadBoard";
 import { TableSkeleton, ErrorState } from "@/components/crm/WorkspaceState";
+import { exportFullLeads, exportListKit } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -79,9 +80,13 @@ function LeadsPage() {
   });
   const clearFilters = () => { setStatus("all"); setOwner("all"); setHasEmail("all"); setSearch(""); };
   const exportSelected = () => {
-    const rows = leads.filter((lead) => selected.has(lead.id));
-    const csv = ["username,email,status", ...rows.map((lead) => `"${lead.username}","${lead.email ?? ""}","${leadStage(lead)}"`)].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "selected-leads.csv"; anchor.click(); URL.revokeObjectURL(url);
+    exportFullLeads(leads.filter((lead) => selected.has(lead.id)), "selected-leads.csv");
+  };
+  const exportForListKit = () => {
+    const rows = (selected.size ? leads.filter((lead) => selected.has(lead.id)) : filtered).filter((lead) => lead.email);
+    if (!rows.length) { toast.error("None of these leads have an email address yet."); return; }
+    exportListKit(rows, "listkit-leads.csv");
+    toast.success(`${rows.length.toLocaleString()} leads exported in the ListKit layout`);
   };
   const openNextInstagram = (count: number) => {
     const seen = new Set<string>(JSON.parse(localStorage.getItem("crm.opened-today") ?? "[]") as string[]);
@@ -109,7 +114,7 @@ function LeadsPage() {
 
   return <div className="px-4 py-5 lg:px-6">
     <div className="mx-auto max-w-[1800px]">
-      <header className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-baseline gap-2"><h1 className="text-2xl font-semibold">Leads</h1><span className="text-sm tabular-nums text-muted-foreground">{leads.length.toLocaleString()} total</span></div><p className="mt-1 text-sm text-muted-foreground">Manage, qualify and contact prospects.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => openNextInstagram(10)}><Instagram />Open next 10</Button><Button variant="outline" onClick={() => openNextInstagram(20)}>Open next 20</Button><Button variant="outline" onClick={() => setBatchOpen(true)}><Download />Daily batch</Button><Button onClick={() => setAddLeadOpen(true)}><Plus />Add lead</Button></div></header>
+      <header className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-baseline gap-2"><h1 className="text-2xl font-semibold">Leads</h1><span className="text-sm tabular-nums text-muted-foreground">{leads.length.toLocaleString()} total</span></div><p className="mt-1 text-sm text-muted-foreground">Manage, qualify and contact prospects.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => openNextInstagram(10)}><Instagram />Open next 10</Button><Button variant="outline" onClick={() => openNextInstagram(20)}>Open next 20</Button><Button variant="outline" onClick={() => setBatchOpen(true)}><Download />Daily batch</Button><Button variant="outline" onClick={exportForListKit}><FileDown />Export for ListKit</Button><Button onClick={() => setAddLeadOpen(true)}><Plus />Add lead</Button></div></header>
 
       <div className="mt-5 flex flex-wrap items-stretch gap-2">{STATUSES.map((item) => <button key={item.value} onClick={() => setStatus(status === item.value ? "all" : item.value)} className={cn("flex min-w-[9rem] flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-left hover:bg-secondary/60", status === item.value && "border-primary/50 bg-accent")}><span className="flex min-w-0 items-center gap-2"><span className={cn("size-2 shrink-0 rounded-full", item.dot)} /><span className="truncate text-xs font-medium">{item.label}</span></span><span className="text-xs font-semibold tabular-nums">{(counts[item.value] ?? 0).toLocaleString()}</span></button>)}<button onClick={() => setManageStagesOpen(true)} title="Add a stage" className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-foreground"><Plus className="size-4" />Add stage</button></div>
 
