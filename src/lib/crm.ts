@@ -148,9 +148,17 @@ export async function createStage(
   return data;
 }
 
-export async function renameStage(id: string, patch: { label?: string; color?: string }) {
+export async function renameStage(id: string, patch: { label?: string; color?: string; position?: number }) {
   const { error } = await supabase.from("lead_stages").update(patch).eq("id", id);
   if (error) throw error;
+}
+
+/** Persists a new stage order; ids must be in the desired order. */
+export async function reorderStages(ids: string[]) {
+  for (const [index, id] of ids.entries()) {
+    const { error } = await supabase.from("lead_stages").update({ position: index }).eq("id", id);
+    if (error) throw error;
+  }
 }
 
 export async function deleteStage(stage: Stage) {
