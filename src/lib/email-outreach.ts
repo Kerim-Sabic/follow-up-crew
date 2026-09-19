@@ -157,3 +157,47 @@ export function analyzeEmail(subject: string, body: string): { checks: EmailChec
   const passed = checks.filter((check) => check.ok).length;
   return { checks, score: Math.round((passed / checks.length) * 100) };
 }
+
+// ---------- daily sending limits ----------
+
+const WARMUP_KEY = "crm.warmup-start";
+
+/** First day this device started sending, used for the warm-up ramp. */
+export function warmupStartedAt(): number {
+  if (typeof window === "undefined") return Date.now();
+  const raw = window.localStorage.getItem(WARMUP_KEY);
+  if (raw) return Number(raw);
+  const now = Date.now();
+  window.localStorage.setItem(WARMUP_KEY, String(now));
+  return now;
+}
+
+export type SendPlan = {
+  dayNumber: number;
+  safeDaily: number;
+  sentToday: number;
+  remaining: number;
+  batchSize: number;
+  advice: string;
+  level: "ok" | "caution" | "stop";
+};
+
+/**
+ * Conservative cold-email warm-up: 10 a day in week one, then roughly +5 a day,
+ * capped at 50 from one address — the volume most providers tolerate before
+ * flagging a new sender.
+ */
+export function sendPlan(sentToday = emailedToday().length): SendPlan {
+  const dayNumber = Math.max(1, Math.floor((Date.now() - warmupStartedAt()) / 86400000) + 1);
+  const safeDaily = Math.min(50, dayNumber <= 3 ? 10 : dayNumber <= 7 ? 15 : 15 + (dayNumber - 7) * 5);
+  const remaining = Math.max(0, safeDaily - sentToday);
+  const batchSize = Math.min(remaining, 10);
+  const level: SendPlan["level"] = remaining === 0 ? "stop" : remaining <= safeDaily * 0.25 ? "caution" : "ok";
+  const advice =
+    remaining === 0
+      ? `You've hit today's safe limit of ${safeDaily} from this address. Sending more risks the spam folder — continue tomorrow, or add a second mailbox.`
+      : level === "caution"
+        ? `Only ${remaining} left of today's safe ${safeDaily}. Spread them out rather than sending in one burst.`
+        : `Day ${dayNumber} of warming up this address: up to ${safeDaily} emails today, ${remaining} still available. Keep batches around 10 with a few minutes between them.`;
+  return { dayNumber, safeDaily, sentToday, remaining, batchSize, advice, level };
+}
