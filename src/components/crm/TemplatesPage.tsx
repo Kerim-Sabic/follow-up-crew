@@ -10,6 +10,7 @@ import {
   personalize,
   saveSender,
   withSignature,
+  analyzeEmail,
   MAIL_CLIENTS,
   TOKENS,
   type SenderSettings,
@@ -96,6 +97,8 @@ export function TemplatesPage() {
         <Stat label="Words in this email" value={`${words}`} />
         <Stat label="Reading time" value={`${readSeconds}s`} />
       </div>
+
+      <ReplyCheck subject={renderedSubject} body={body} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
         <div className="space-y-1">
@@ -184,4 +187,28 @@ export function TemplatesPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">{label}</p><strong className="mt-0.5 block text-lg tabular-nums">{value}</strong></div>;
+}
+
+function ReplyCheck({ subject, body }: { subject: string; body: string }) {
+  const { checks, score } = analyzeEmail(subject, body);
+  const tone = score >= 85 ? "text-success" : score >= 60 ? "text-warning" : "text-destructive";
+  return (
+    <section className="mt-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Reply-rate check</h2>
+        <span className={`text-sm font-semibold tabular-nums ${tone}`}>{score}%</span>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {checks.map((check) => (
+          <li key={check.label} className="flex items-start gap-2 text-xs">
+            <span className={`mt-0.5 size-2 shrink-0 rounded-full ${check.ok ? "bg-success" : "bg-warning"}`} />
+            <span>
+              <span className="font-medium">{check.label}</span>
+              {check.ok ? null : <span className="block text-muted-foreground">{check.hint}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
