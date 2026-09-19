@@ -9,6 +9,7 @@ import {
   extractJson,
   hermesChat,
   hermesTestConnection,
+  hermesDiscover,
   loadHermes,
   parsePartialObjects,
   saveHermes,
@@ -145,11 +146,43 @@ export function HermesPage() {
       note(result.message, result.ok ? "ok" : "error");
       if (result.ok) toast.success(result.message); else toast.error(result.message);
       if (result.models.length) note(`Models on your machine: ${result.models.join(", ")}`);
+      if (!result.ok && result.kind === "model-missing" && result.models.length === 1) {
+        const only = result.models[0]!;
+        setSettings((current) => ({ ...current, model: only }));
+        note(`Switched to the only model Hermes has loaded: ${only}. Press Test connection again.`, "ok");
+      }
     } catch (error) {
       setStatus("error");
       const message = error instanceof Error ? error.message : "Hermes could not be reached.";
       note(message, "error");
       toast.error(message);
+    } finally {
+      setBusy(null);
+      setLive(null);
+    }
+  }
+
+  async function autoDetect() {
+    note("Looking for Hermes on this computer…");
+    startLive("Auto-detecting Hermes", "scanning local addresses");
+    setBusy("test");
+    try {
+      const found = await hermesDiscover(settings);
+      if (!found) {
+        setStatus("error");
+        note("No Hermes server answered on the usual local addresses. Start Hermes, then try again.", "error");
+        toast.error("Couldn't find Hermes on this computer.");
+        return;
+      }
+      const model = found.models.includes(settings.model) ? settings.model : found.models[0]!;
+      const next = { ...settings, baseUrl: found.baseUrl, model };
+      setSettings(next);
+      saveHermes(next);
+      setModels(found.models);
+      setLatency(found.latencyMs);
+      setStatus("ok");
+      note(`Found Hermes at ${found.baseUrl} using "${model}" (${found.latencyMs} ms).`, "ok");
+      toast.success(`Hermes found at ${found.baseUrl}`);
     } finally {
       setBusy(null);
       setLive(null);
@@ -342,6 +375,7 @@ export function HermesPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => { saveHermes(settings); toast.success("Saved on this device"); }}><Save />Save</Button>
           <Button onClick={test} disabled={busy === "test"}>{busy === "test" ? <Loader2 className="animate-spin" /> : <Plug />}Test connection</Button>
+          <Button variant="outline" onClick={autoDetect} disabled={busy === "test"}>Auto-detect</Button>
           <button type="button" onClick={() => setHelpOpen((open) => !open)} className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">Browser permission help</button>
           {busy ? <Button variant="ghost" onClick={stop}><CircleStop />Stop</Button> : null}
         </div>

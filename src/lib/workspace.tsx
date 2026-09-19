@@ -32,9 +32,18 @@ const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 export function WorkspaceProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const queryClient = useQueryClient();
   const [workspace, setWorkspaceState] = useState<Workspace>("docmesker");
-  const leadsQuery = useQuery({ queryKey: ["leads", workspace], queryFn: () => fetchLeads(workspace) });
-  const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles });
-  const stagesQuery = useQuery({ queryKey: ["lead-stages", workspace], queryFn: () => fetchStages(workspace) });
+  // Leads are thousands of rows: keep them cached so moving between pages and
+  // workspaces is instant, and let realtime decide when to refetch.
+  const leadsQuery = useQuery({
+    queryKey: ["leads", workspace],
+    queryFn: () => fetchLeads(workspace),
+    staleTime: 5 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
+  const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, staleTime: 10 * 60_000, refetchOnWindowFocus: false });
+  const stagesQuery = useQuery({ queryKey: ["lead-stages", workspace], queryFn: () => fetchStages(workspace), staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -52,11 +61,15 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
   }
 
   useEffect(() => {
+    // One refetch per burst: a bulk stage change fires hundreds of row events.
+    let leadsTimer: ReturnType<typeof setTimeout> | undefined;
+    const refetchLeads = () => {
+      if (leadsTimer) clearTimeout(leadsTimer);
+      leadsTimer = setTimeout(() => queryClient.invalidateQueries({ queryKey: ["leads"] }), 1500);
+    };
     const channel = supabase
       .channel("crm-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["leads"] });
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, refetchLeads)
       .on("postgres_changes", { event: "*", schema: "public", table: "lead_notes" }, () => {
         queryClient.invalidateQueries({ queryKey: ["lead-notes"] });
       })
@@ -67,7 +80,10 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
         queryClient.invalidateQueries({ queryKey: ["lead-stages"] });
       })
       .subscribe();
-    return () => void supabase.removeChannel(channel);
+    return () => {
+      if (leadsTimer) clearTimeout(leadsTimer);
+      void supabase.removeChannel(channel);
+    };
   }, [queryClient]);
 
   useEffect(() => {

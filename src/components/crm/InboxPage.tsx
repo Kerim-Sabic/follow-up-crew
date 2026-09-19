@@ -10,6 +10,7 @@ import { useMailboxes } from "@/lib/mailboxes";
 import { markReplyRead, replyToThread } from "@/lib/mail.functions";
 import { formatWhen } from "@/lib/crm";
 import { Button } from "@/components/ui/button";
+import { LeadAvatar } from "./LeadAvatar";
 import { MailboxesCard } from "./MailboxesCard";
 import { PageHeader } from "./WorkspacePages";
 
@@ -144,6 +145,7 @@ export function InboxPage() {
                         className={`w-full border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-secondary/60 ${active?.id === thread.id ? "bg-secondary" : ""}`}
                       >
                         <span className="flex items-center gap-2">
+                          {lead ? <LeadAvatar username={lead.username} size="sm" /> : null}
                           {thread.unread ? <span className="size-2 shrink-0 rounded-full bg-primary" /> : null}
                           <span className="truncate text-[13px] font-medium">
                             {lead?.full_name || lead?.username || thread.lastIncoming?.from_email}

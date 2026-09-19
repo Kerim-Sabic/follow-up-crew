@@ -17,11 +17,13 @@ import {
   saveSender,
   withSignature,
   MAIL_CLIENTS,
+  sendPlan,
   type SenderSettings,
 } from "@/lib/email-outreach";
 import { useMailboxes, preferredMailbox, rememberMailbox } from "@/lib/mailboxes";
 import { sendLeadEmails } from "@/lib/mail.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { LeadAvatar } from "./LeadAvatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -73,6 +75,7 @@ export function EmailBatchDialog({
   }, [leads, count, alreadyToday]);
 
   const withEmailTotal = leads.filter(hasEmail).length;
+  const plan = useMemo(() => sendPlan(), [open, opened.length]);
 
   function draftFor(lead: Lead, index: number) {
     const source = bodyOverride ?? template.variants[rotate ? index % template.variants.length : Math.min(variant, template.variants.length - 1)] ?? "";
@@ -165,6 +168,14 @@ export function EmailBatchDialog({
           <DialogDescription>{withEmailTotal.toLocaleString()} leads in {workspaceLabel} have an email address. Each one gets its own personalised draft in your mail app.</DialogDescription>
         </DialogHeader>
 
+        <div className={`rounded-md border p-3 text-xs ${plan.level === "stop" ? "border-destructive/40 bg-destructive/5 text-destructive" : plan.level === "caution" ? "border-warning/40 bg-warning-soft text-warning" : "border-border bg-secondary/40 text-muted-foreground"}`}>
+          <p className="font-medium">Safe sending today: {plan.remaining} of {plan.safeDaily} left</p>
+          <p className="mt-1">{plan.advice}</p>
+          {count > plan.remaining && plan.remaining > 0 ? (
+            <button type="button" className="mt-1 underline" onClick={() => setCount(plan.remaining)}>Use the safe amount ({plan.remaining})</button>
+          ) : null}
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-xs text-muted-foreground">Your name<input className={`${inputClass} mt-1`} value={sender.name} onChange={(event) => setSender({ ...sender, name: event.target.value })} placeholder="Kerim" /></label>
           <label className="text-xs text-muted-foreground">How many<input type="number" min={1} max={50} className={`${inputClass} mt-1`} value={count} onChange={(event) => setCount(Math.max(1, Math.min(50, Number(event.target.value) || 1)))} /></label>
@@ -211,6 +222,7 @@ export function EmailBatchDialog({
               const done = opened.includes(lead.id);
               return (
                 <div key={lead.id} className="flex items-start gap-3 border-b border-border p-3 last:border-0">
+                  <LeadAvatar username={lead.username} size="sm" />
                   <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] ${done ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground"}`}>{done ? <Check className="size-3" /> : index + 1}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-medium">{lead.full_name || `@${lead.username.replace(/^@/, "")}`} <span className="font-normal text-muted-foreground">· {lead.email}</span></p>
