@@ -19,8 +19,14 @@ export function PageHeader({ title, description, actions }: { title: string; des
 }
 
 function useStatusMutation() {
-  const { user } = useAuth(); const queryClient = useQueryClient();
-  return useMutation({ mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["leads"] }); toast.success("Lead updated"); }, onError: () => toast.error("Couldn't update this lead. Try again.") });
+  const { user } = useAuth(); const queryClient = useQueryClient(); const optimistic = useOptimisticStage();
+  return useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: LeadStatus }) => updateLeadStatus(ids, status, user?.id ?? ""),
+    onMutate: ({ ids, status }) => optimistic(ids, status, user?.id ?? ""),
+    onSuccess: () => toast.success("Lead updated"),
+    onError: () => { queryClient.invalidateQueries({ queryKey: ["leads"] }); toast.error("Couldn't update this lead. Try again."); },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
+  });
 }
 
 export function DashboardPage() {
