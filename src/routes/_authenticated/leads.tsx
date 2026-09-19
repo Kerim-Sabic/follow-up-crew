@@ -69,7 +69,14 @@ function LeadsPage() {
     return result.sort((a, b) => sort === "username" ? a.username.localeCompare(b.username) : sort === "recent" ? (b.last_touched_at ?? "").localeCompare(a.last_touched_at ?? "") : (a.number ?? 0) - (b.number ?? 0));
   }, [deferredSearch, hasEmail, leads, owner, sort, status, user?.id]);
 
-  const mutation = useMutation({ mutationFn: ({ ids, next }: { ids: string[]; next: LeadStatus }) => updateLeadStatus(ids, next, user?.id ?? ""), onSuccess: (_data, variables) => { queryClient.invalidateQueries({ queryKey: ["leads"] }); toast.success(variables.ids.length > 1 ? `${variables.ids.length} leads updated` : "Lead updated"); if (variables.ids.length > 1) setSelected(new Set()); }, onError: () => toast.error("Couldn't update leads. Try again.") });
+  const optimisticStage = useOptimisticStage();
+  const mutation = useMutation({
+    mutationFn: ({ ids, next }: { ids: string[]; next: LeadStatus }) => updateLeadStatus(ids, next, user?.id ?? ""),
+    onMutate: ({ ids, next }) => optimisticStage(ids, next, user?.id ?? ""),
+    onSuccess: (_data, variables) => { toast.success(variables.ids.length > 1 ? `${variables.ids.length} leads updated` : "Lead updated"); if (variables.ids.length > 1) setSelected(new Set()); },
+    onError: () => { queryClient.invalidateQueries({ queryKey: ["leads"] }); toast.error("Couldn't update leads. Try again."); },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
+  });
   const clearFilters = () => { setStatus("all"); setOwner("all"); setHasEmail("all"); setSearch(""); };
   const exportSelected = () => {
     const rows = leads.filter((lead) => selected.has(lead.id));
