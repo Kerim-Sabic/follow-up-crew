@@ -330,44 +330,94 @@ export function formatWhen(value: string | null) {
 
 /**
  * Ranks creators by how likely their audience converts into buyers — never by
- * follower count (which we don't track). Purely from data we actually hold.
+ * follower count (which we don't track).
+ *
+ * Two things make this accurate instead of "everyone is low":
+ * 1. Coverage-aware: a lead is only graded on the signals we actually know
+ *    about. Missing data lowers confidence, not the score.
+ * 2. Relative: tiers come from how a lead ranks against the rest of the list,
+ *    so "high value" always means the genuine top of this workspace.
  */
 export type QualityBreakdown = { label: string; points: number }[];
 
-export const NICHES_WITH_BUYERS = ["health", "wealth", "relationship", "fitness", "business", "finance", "dating", "beauty", "education"];
+export const NICHES_WITH_BUYERS = ["health", "wealth", "relationship", "fitness", "business", "finance", "dating", "money", "coach", "nutrition", "wellness", "strength", "beauty", "education", "marketing", "real estate"];
 
-export function leadQualityScore(lead: Pick<Lead, "email" | "niche" | "curation" | "score" | "match_note" | "evidence" | "full_name">): { score: number; tier: "high" | "medium" | "low"; breakdown: QualityBreakdown } {
-  const breakdown: QualityBreakdown = [];
-  // 1. Reachability: an email makes a cold outreach campaign possible at all.
-  if (lead.email?.trim()) breakdown.push({ label: "Email on file", points: 25 });
-  // 2. Niche with proven buyers (health/wealth/relationships spend money).
-  const niche = (lead.niche ?? "").trim().toLowerCase();
-  if (niche) {
-    const buyers = NICHES_WITH_BUYERS.some((item) => niche.includes(item));
-    breakdown.push({ label: buyers ? `Niche with buyers (${lead.niche})` : "Niche identified", points: buyers ? 25 : 10 });
+type QualityLead = Pick<Lead, "email" | "niche" | "curation" | "score" | "match_note" | "evidence" | "full_name" | "username">;
+
+type QualityContext = { maxScore: number; highCut: number; mediumCut: number; size: number };
+
+let QUALITY_CTX: QualityContext = { maxScore: 100, highCut: 999, mediumCut: 999, size: 0 };
+
+const WEIGHTS = { email: 22, niche: 26, curation: 18, match: 20, profile: 14 };
+
+function nicheFit(niche: string) {
+  const value = niche.trim().toLowerCase();
+  if (!value) return null;
+  return NICHES_WITH_BUYERS.some((item) => value.includes(item)) ? 1 : 0.5;
+}
+
+function rawQuality(lead: QualityLead, ctx: QualityContext) {
+  const parts: { label: string; weight: number; value: number }[] = [];
+
+  parts.push({ label: lead.email?.trim() ? "Email on file — can be reached" : "No email yet", weight: WEIGHTS.email, value: lead.email?.trim() ? 1 : 0 });
+
+  const fit = nicheFit(lead.niche ?? "");
+  if (fit !== null) {
+    parts.push({ label: fit === 1 ? `Niche with buyers (${lead.niche})` : `Niche: ${lead.niche}`, weight: WEIGHTS.niche, value: fit });
   }
-  // 3. Existing review/curation decision from the import.
-  if (lead.curation?.trim().toUpperCase() === "KEEP") breakdown.push({ label: "Kept in curation review", points: 20 });
-  else if (lead.curation?.trim()) breakdown.push({ label: "Reviewed", points: 5 });
-  // 4. Existing match score (0-100) folded in as a quarter of the total.
-  const given = Math.max(0, Math.min(100, lead.score ?? 0));
-  if (given) breakdown.push({ label: "Match score", points: Math.round(given * 0.25) });
-  // 5. Rich profile data: full name, evidence, a real note.
-  if (lead.evidence?.trim()) breakdown.push({ label: "Evidence captured", points: 5 });
-  if (lead.full_name?.trim()) breakdown.push({ label: "Real name known", points: 3 });
-  if (lead.match_note?.trim()) breakdown.push({ label: "Match note", points: 2 });
 
-  const score = Math.min(100, breakdown.reduce((sum, item) => sum + item.points, 0));
-  return { score, tier: score >= 60 ? "high" : score >= 30 ? "medium" : "low", breakdown };
+  const curation = lead.curation?.trim().toUpperCase();
+  if (curation) {
+    parts.push({ label: curation === "KEEP" ? "Kept in review" : "Rejected in review", weight: WEIGHTS.curation, value: curation === "KEEP" ? 1 : 0 });
+  }
+
+  if (typeof lead.score === "number") {
+    const value = Math.max(0, Math.min(1, lead.score / (ctx.maxScore || 1)));
+    parts.push({ label: "Match strength vs the list", weight: WEIGHTS.match, value });
+  }
+
+  let richness = 0;
+  if (lead.full_name?.trim()) richness += 0.35;
+  if (lead.evidence?.trim()) richness += 0.4;
+  if ((lead.match_note ?? "").trim().length > 40) richness += 0.25;
+  parts.push({ label: "Profile detail we hold", weight: WEIGHTS.profile, value: Math.min(1, richness) });
+
+  const knownWeight = parts.reduce((sum, part) => sum + part.weight, 0);
+  const earned = parts.reduce((sum, part) => sum + part.weight * part.value, 0);
+  const score = Math.round((earned / (knownWeight || 1)) * 100);
+  const totalWeight = Object.values(WEIGHTS).reduce((a, b) => a + b, 0);
+
+  const breakdown: QualityBreakdown = parts
+    .filter((part) => part.value > 0)
+    .map((part) => ({ label: part.label, points: Math.round((part.weight * part.value) / (knownWeight || 1) * 100) }));
+
+  return { score, breakdown, confidence: Math.round((knownWeight / totalWeight) * 100), missing: parts.length < 5 };
+}
+
+/** Recomputes the relative grading curve for the current workspace list. */
+export function setQualityContext(leads: QualityLead[]) {
+  if (!leads.length) return;
+  const maxScore = Math.max(1, ...leads.map((lead) => (typeof lead.score === "number" ? lead.score : 0)));
+  const base: QualityContext = { maxScore, highCut: 999, mediumCut: 999, size: leads.length };
+  const scores = leads.map((lead) => rawQuality(lead, base).score).sort((a, b) => a - b);
+  const at = (p: number) => scores[Math.min(scores.length - 1, Math.floor(scores.length * p))] ?? 0;
+  QUALITY_CTX = { maxScore, highCut: at(0.8), mediumCut: at(0.45), size: leads.length };
+}
+
+export function leadQualityScore(lead: QualityLead): { score: number; tier: "high" | "medium" | "low"; breakdown: QualityBreakdown; confidence: number } {
+  const { score, breakdown, confidence } = rawQuality(lead, QUALITY_CTX);
+  const tier = score >= QUALITY_CTX.highCut ? "high" : score >= QUALITY_CTX.mediumCut ? "medium" : "low";
+  return { score, tier, breakdown, confidence };
 }
 
 export function qualityTierMeta(tier: "high" | "medium" | "low") {
-  if (tier === "high") return { label: "High value", className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" };
-  if (tier === "medium") return { label: "Medium", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300" };
-  return { label: "Low", className: "bg-slate-500/12 text-slate-600 dark:text-slate-300" };
+  if (tier === "high") return { label: "Top of list", className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" };
+  if (tier === "medium") return { label: "Promising", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300" };
+  return { label: "Lower priority", className: "bg-slate-500/12 text-slate-600 dark:text-slate-300" };
 }
 
 /** Sort leads best-first by monetizable audience quality. */
-export function byQuality<T extends Parameters<typeof leadQualityScore>[0]>(leads: T[]): T[] {
+export function byQuality<T extends QualityLead>(leads: T[]): T[] {
   return [...leads].sort((a, b) => leadQualityScore(b).score - leadQualityScore(a).score);
 }
+
