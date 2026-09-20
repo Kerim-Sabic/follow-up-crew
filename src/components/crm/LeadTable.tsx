@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ExternalLink, Instagram, Mail, MessageSquarePlus } from "lucide-react";
-import { leadStage, formatWhen, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
+import { leadQualityScore, qualityTierMeta, leadStage, formatWhen, instagramUrl, type Lead, type LeadStatus } from "@/lib/crm";
 import { StatusSelect } from "./StatusSelect";
 import { LeadAvatar } from "./LeadAvatar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -77,7 +77,7 @@ export function LeadTable({
                     <LeadAvatar username={lead.username} />
                     <div className="min-w-0"><p className="truncate text-[13px] font-medium text-foreground">@{lead.username.replace(/^@/, "")}</p><p className="truncate text-[11px] text-muted-foreground">{lead.full_name ?? `Lead #${lead.number ?? "—"}`}</p></div>
                   </div>
-                  <div className="min-w-0"><p className="truncate text-[13px] text-foreground">{lead.email ?? "No email"}</p><p className="truncate text-[11px] text-muted-foreground">{lead.niche ? `${lead.niche}${lead.score !== null && lead.score !== undefined ? ` · score ${lead.score}` : ""}` : "Instagram"}</p></div>
+                  <div className="min-w-0"><p className="truncate text-[13px] text-foreground">{lead.email ?? "No email"}</p><p className="truncate text-[11px] text-muted-foreground">{lead.niche ?? "Instagram"}</p><QualityBadge lead={lead} /></div>
                   <StatusSelect
                     value={leadStage(lead)}
                     onChange={(status) => onStatusChange([lead.id], status)}
@@ -100,5 +100,15 @@ export function LeadTable({
         )}
       </div>
     </div>
+  );
+}
+
+function QualityBadge({ lead }: { lead: Lead }) {
+  const { score, tier } = leadQualityScore(lead);
+  const meta = qualityTierMeta(tier);
+  return (
+    <span className={`mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.className}`} title="Audience quality, not follower count">
+      {score} · {meta.label}
+    </span>
   );
 }

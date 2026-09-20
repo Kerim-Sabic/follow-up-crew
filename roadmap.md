@@ -1,7 +1,4 @@
-- [ ] Audit existing app, routes, data contracts, and diagnostics
-- [ ] Establish premium design system and application shell
-- [ ] Redesign leads workspace, drawer, filters, and table interactions
-- [ ] Build operational dashboard and supporting workflows
-- [ ] Build pipeline and analytics experiences
-- [ ] Add loading, empty, error, keyboard, and responsive states
-- [ ] Complete visual QA and resolve all issues
+# Task list
+
+- [x] Inbox shows sent messages, not just replies (Replies/Sent/All tabs + search)
+- [x] Lead scoring: rank creators by monetizable audience quality, not follower count

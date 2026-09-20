@@ -5,7 +5,7 @@ import { Columns3, Download, FileDown, Filter, Instagram, LayoutList, Plus, Sear
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useOptimisticStage, useWorkspace } from "@/lib/workspace";
-import { leadStage, STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { byQuality, leadStage, STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
 import { SwipeReview, type SwipeDecision } from "@/components/crm/SwipeReview";
 import type { Lead } from "@/lib/crm";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/leads")({
   ]}), component: LeadsPage,
 });
 
-type Sort = "number" | "recent" | "username";
+type Sort = "number" | "recent" | "username" | "quality";
 
 function LeadsPage() {
   const { user } = useAuth();
@@ -67,6 +67,7 @@ function LeadsPage() {
       if (!deferredSearch) return true;
       return `${lead.username} ${lead.email ?? ""} ${lead.match_note ?? ""} ${lead.number}`.toLowerCase().includes(deferredSearch);
     });
+    if (sort === "quality") return byQuality(result);
     return result.sort((a, b) => sort === "username" ? a.username.localeCompare(b.username) : sort === "recent" ? (b.last_touched_at ?? "").localeCompare(a.last_touched_at ?? "") : (a.number ?? 0) - (b.number ?? 0));
   }, [deferredSearch, hasEmail, leads, owner, sort, status, user?.id]);
 
@@ -124,7 +125,7 @@ function LeadsPage() {
           <Select value={owner} onValueChange={(next) => setOwner(next as typeof owner)}><SelectTrigger className="h-9 w-32"><UserRound className="size-3.5" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All owners</SelectItem><SelectItem value="mine">Assigned to me</SelectItem><SelectItem value="unassigned">Unassigned</SelectItem></SelectContent></Select>
           <Select value={hasEmail} onValueChange={(next) => setHasEmail(next as typeof hasEmail)}><SelectTrigger className="hidden h-9 w-32 md:flex"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Any email</SelectItem><SelectItem value="yes">Has email</SelectItem><SelectItem value="no">No email</SelectItem></SelectContent></Select>
           <Button variant="outline" size="sm"><Filter />More filters{activeFilters ? <span className="rounded bg-primary px-1 text-[10px] text-primary-foreground">{activeFilters}</span> : null}</Button>
-          <div className="ml-auto flex items-center gap-1"><Select value={sort} onValueChange={(next) => setSort(next as Sort)}><SelectTrigger className="h-9 w-32"><SlidersHorizontal className="size-3.5" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="number">Import order</SelectItem><SelectItem value="recent">Recently touched</SelectItem><SelectItem value="username">Username</SelectItem></SelectContent></Select><div className="flex rounded-md border border-input bg-card p-0.5"><Button variant={view === "table" ? "secondary" : "ghost"} size="icon" className="size-8" onClick={() => setView("table")} aria-label="Table view"><LayoutList /></Button><Button variant={view === "board" ? "secondary" : "ghost"} size="icon" className="size-8" onClick={() => setView("board")} aria-label="Board view"><Columns3 /></Button></div></div>
+          <div className="ml-auto flex items-center gap-1"><Select value={sort} onValueChange={(next) => setSort(next as Sort)}><SelectTrigger className="h-9 w-32"><SlidersHorizontal className="size-3.5" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="quality">Best leads first</SelectItem><SelectItem value="number">Import order</SelectItem><SelectItem value="recent">Recently touched</SelectItem><SelectItem value="username">Username</SelectItem></SelectContent></Select><div className="flex rounded-md border border-input bg-card p-0.5"><Button variant={view === "table" ? "secondary" : "ghost"} size="icon" className="size-8" onClick={() => setView("table")} aria-label="Table view"><LayoutList /></Button><Button variant={view === "board" ? "secondary" : "ghost"} size="icon" className="size-8" onClick={() => setView("board")} aria-label="Board view"><Columns3 /></Button></div></div>
         </div>}
       </div>
 
