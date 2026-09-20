@@ -104,10 +104,10 @@ export function LeadTable({
 }
 
 function QualityBadge({ lead }: { lead: Lead }) {
-  const { score, tier } = leadQualityScore(lead);
+  const { score, tier, confidence } = leadQualityScore(lead);
   const meta = qualityTierMeta(tier);
   return (
-    <span className={`mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.className}`} title="Audience quality, not follower count">
+    <span className={`mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.className}`} title={`Audience quality vs the rest of this list · ${confidence}% of signals known`}>
       {score} · {meta.label}
     </span>
   );
