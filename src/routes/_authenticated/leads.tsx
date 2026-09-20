@@ -5,7 +5,7 @@ import { Columns3, Download, FileDown, Filter, Instagram, LayoutList, Plus, Sear
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useOptimisticStage, useWorkspace } from "@/lib/workspace";
-import { leadStage, STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
+import { byQuality, leadStage, STATUSES, instagramUrl, updateLeadStatus, type LeadStatus } from "@/lib/crm";
 import { InstagramBatchDialog } from "@/components/crm/InstagramBatchDialog";
 import { SwipeReview, type SwipeDecision } from "@/components/crm/SwipeReview";
 import type { Lead } from "@/lib/crm";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/leads")({
   ]}), component: LeadsPage,
 });
 
-type Sort = "number" | "recent" | "username";
+type Sort = "number" | "recent" | "username" | "quality";
 
 function LeadsPage() {
   const { user } = useAuth();
