@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, ExternalLink, Mail, MessageSquare, StickyNote, UserRound, Clock3 } from "lucide-react";
-import { leadStage,
+import { leadQualityScore, qualityTierMeta, leadStage,
   addNote,
   claimLead,
   fetchNotes,
@@ -94,6 +94,11 @@ export function LeadPanel({
                 <Row label="Date added" value={new Date(lead.created_at).toLocaleDateString()} />
               </dl></section>
               {lead.match_note ? <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Why this lead is interesting</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{lead.match_note}</p></section> : null}
+              <section className="border-t border-border pt-5">
+                <h3 className="text-xs font-semibold">Audience quality</h3>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Monetizable audience signals — never follower count.</p>
+                <QualityBreakdown lead={lead} />
+              </section>
               <section className="border-t border-border pt-5"><h3 className="text-xs font-semibold">Next action</h3><div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-secondary/40 p-3"><span className="flex size-8 items-center justify-center rounded-md bg-card text-primary"><MessageSquare className="size-4" /></span><div className="flex-1"><p className="text-sm font-medium">{leadStage(lead) === "not_contacted" ? "Start outreach" : leadStage(lead) === "contacted" ? "Follow up" : "Review conversation"}</p><p className="text-xs text-muted-foreground">Keep the relationship moving.</p></div></div></section>
             </TabsContent>
             <TabsContent value="activity" className="mt-0"><div className="space-y-5 border-l border-border pl-5"><Timeline icon={<Clock3 />} title={lead.last_touched_at ? `Stage updated to ${leadStage(lead).replace("_", " ")}` : "Lead added to workspace"} when={formatWhen(lead.last_touched_at ?? lead.created_at)} /><Timeline icon={<UserRound />} title={lead.owner_id ? `Assigned to ${ownerName(lead.owner_id)}` : "Currently unassigned"} when={formatWhen(lead.created_at)} /></div></TabsContent>
@@ -159,4 +164,25 @@ function Row({ label, value }: { label: string; value: string }) {
 
 function Timeline({ icon, title, when }: { icon: React.ReactNode; title: string; when: string }) {
   return <div className="relative"><span className="absolute -left-8 flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground [&>svg]:size-3">{icon}</span><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-xs text-muted-foreground">{when}</p></div>;
+}
+
+function QualityBreakdown({ lead }: { lead: Lead }) {
+  const { score, tier, breakdown } = leadQualityScore(lead);
+  const meta = qualityTierMeta(tier);
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${meta.className}`}>{score}/100 · {meta.label}</span>
+      </div>
+      <ul className="space-y-1">
+        {breakdown.map((item) => (
+          <li key={item.label} className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{item.label}</span>
+            <span className="tabular-nums font-medium text-foreground">+{item.points}</span>
+          </li>
+        ))}
+        {breakdown.length === 0 ? <li className="text-xs text-muted-foreground">No quality signals yet — Hermes can enrich this lead.</li> : null}
+      </ul>
+    </div>
+  );
 }
