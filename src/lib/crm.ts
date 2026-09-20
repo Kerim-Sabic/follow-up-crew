@@ -325,3 +325,49 @@ export function formatWhen(value: string | null) {
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
 }
+
+// ---------- monetizable audience quality ----------
+
+/**
+ * Ranks creators by how likely their audience converts into buyers — never by
+ * follower count (which we don't track). Purely from data we actually hold.
+ */
+export type QualityBreakdown = { label: string; points: number }[];
+
+export const NICHES_WITH_BUYERS = ["health", "wealth", "relationship", "fitness", "business", "finance", "dating", "beauty", "education"];
+
+export function leadQualityScore(lead: Pick<Lead, "email" | "niche" | "curation" | "score" | "match_note" | "evidence" | "full_name">): { score: number; tier: "high" | "medium" | "low"; breakdown: QualityBreakdown } {
+  const breakdown: QualityBreakdown = [];
+  // 1. Reachability: an email makes a cold outreach campaign possible at all.
+  if (lead.email?.trim()) breakdown.push({ label: "Email on file", points: 25 });
+  // 2. Niche with proven buyers (health/wealth/relationships spend money).
+  const niche = (lead.niche ?? "").trim().toLowerCase();
+  if (niche) {
+    const buyers = NICHES_WITH_BUYERS.some((item) => niche.includes(item));
+    breakdown.push({ label: buyers ? `Niche with buyers (${lead.niche})` : "Niche identified", points: buyers ? 25 : 10 });
+  }
+  // 3. Existing review/curation decision from the import.
+  if (lead.curation?.trim().toUpperCase() === "KEEP") breakdown.push({ label: "Kept in curation review", points: 20 });
+  else if (lead.curation?.trim()) breakdown.push({ label: "Reviewed", points: 5 });
+  // 4. Existing match score (0-100) folded in as a quarter of the total.
+  const given = Math.max(0, Math.min(100, lead.score ?? 0));
+  if (given) breakdown.push({ label: "Match score", points: Math.round(given * 0.25) });
+  // 5. Rich profile data: full name, evidence, a real note.
+  if (lead.evidence?.trim()) breakdown.push({ label: "Evidence captured", points: 5 });
+  if (lead.full_name?.trim()) breakdown.push({ label: "Real name known", points: 3 });
+  if (lead.match_note?.trim()) breakdown.push({ label: "Match note", points: 2 });
+
+  const score = Math.min(100, breakdown.reduce((sum, item) => sum + item.points, 0));
+  return { score, tier: score >= 60 ? "high" : score >= 30 ? "medium" : "low", breakdown };
+}
+
+export function qualityTierMeta(tier: "high" | "medium" | "low") {
+  if (tier === "high") return { label: "High value", className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" };
+  if (tier === "medium") return { label: "Medium", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300" };
+  return { label: "Low", className: "bg-slate-500/12 text-slate-600 dark:text-slate-300" };
+}
+
+/** Sort leads best-first by monetizable audience quality. */
+export function byQuality<T extends Parameters<typeof leadQualityScore>[0]>(leads: T[]): T[] {
+  return [...leads].sort((a, b) => leadQualityScore(b).score - leadQualityScore(a).score);
+}
