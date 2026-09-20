@@ -167,13 +167,15 @@ function Timeline({ icon, title, when }: { icon: React.ReactNode; title: string;
 }
 
 function QualityBreakdown({ lead }: { lead: Lead }) {
-  const { score, tier, breakdown } = leadQualityScore(lead);
+  const { score, tier, breakdown, confidence } = leadQualityScore(lead);
   const meta = qualityTierMeta(tier);
   return (
     <div className="mt-2 space-y-2">
       <div className="flex items-center gap-2">
         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${meta.className}`}>{score}/100 · {meta.label}</span>
+        <span className="text-[11px] text-muted-foreground">{confidence}% of signals known</span>
       </div>
+
       <ul className="space-y-1">
         {breakdown.map((item) => (
           <li key={item.label} className="flex items-center justify-between text-xs">
