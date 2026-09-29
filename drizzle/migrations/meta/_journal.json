@@ -36,6 +36,34 @@
       "when": 1789782360300,
       "tag": "0004_email_mailboxes_and_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790702466733,
+      "tag": "0005_creator_trust_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790702759440,
+      "tag": "0006_mission_evidence_and_spend",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790703306857,
+      "tag": "0007_mission_inputs_and_services",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790704624533,
+      "tag": "0008_review_preferences_and_partnerships",
+      "breakpoints": true
     }
   ]
 }

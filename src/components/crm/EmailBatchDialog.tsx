@@ -111,7 +111,7 @@ export function EmailBatchDialog({
         await Promise.all(done.map((lead, index) => addNote(lead.id, user.id, `Emailed (${bodyOverride ? "custom" : `sequence step ${step}`}): ${draftFor(lead, index).subject}`)));
       }
       rememberEmailed(ids);
-      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      await queryClient.invalidateQueries({ predicate: (query) => ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])) });
       toast.success(`${done.length} leads emailed and marked contacted`);
       setOpened([]);
       onClose();
@@ -144,7 +144,7 @@ export function EmailBatchDialog({
           );
         }
         rememberEmailed(result.sent);
-        await queryClient.invalidateQueries({ queryKey: ["leads"] });
+        await queryClient.invalidateQueries({ predicate: (query) => ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])) });
       }
       if (result.failed.length) {
         toast.error(`${result.failed.length} email${result.failed.length === 1 ? "" : "s"} failed to send.`);

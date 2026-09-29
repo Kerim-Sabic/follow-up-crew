@@ -31,7 +31,7 @@ export type Database = {
           subject: string | null
           to_email: string | null
           user_id: string | null
-          workspace: Database["public"]["Enums"]["workspace_key"]
+          workspace: string
         }
         Insert: {
           body?: string | null
@@ -49,7 +49,7 @@ export type Database = {
           subject?: string | null
           to_email?: string | null
           user_id?: string | null
-          workspace?: Database["public"]["Enums"]["workspace_key"]
+          workspace?: string
         }
         Update: {
           body?: string | null
@@ -67,7 +67,7 @@ export type Database = {
           subject?: string | null
           to_email?: string | null
           user_id?: string | null
-          workspace?: Database["public"]["Enums"]["workspace_key"]
+          workspace?: string
         }
         Relationships: [
           {
@@ -135,7 +135,7 @@ export type Database = {
           key: string
           label: string
           position: number
-          workspace: Database["public"]["Enums"]["workspace_key"]
+          workspace: string
         }
         Insert: {
           base_status?: Database["public"]["Enums"]["lead_status"]
@@ -146,7 +146,7 @@ export type Database = {
           key: string
           label: string
           position?: number
-          workspace: Database["public"]["Enums"]["workspace_key"]
+          workspace: string
         }
         Update: {
           base_status?: Database["public"]["Enums"]["lead_status"]
@@ -157,7 +157,7 @@ export type Database = {
           key?: string
           label?: string
           position?: number
-          workspace?: Database["public"]["Enums"]["workspace_key"]
+          workspace?: string
         }
         Relationships: []
       }
@@ -180,7 +180,7 @@ export type Database = {
           stage: string | null
           status: Database["public"]["Enums"]["lead_status"]
           username: string
-          workspace: Database["public"]["Enums"]["workspace_key"]
+          workspace: string
         }
         Insert: {
           created_at?: string
@@ -200,7 +200,7 @@ export type Database = {
           stage?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           username: string
-          workspace?: Database["public"]["Enums"]["workspace_key"]
+          workspace?: string
         }
         Update: {
           created_at?: string
@@ -220,7 +220,7 @@ export type Database = {
           stage?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           username?: string
-          workspace?: Database["public"]["Enums"]["workspace_key"]
+          workspace?: string
         }
         Relationships: [
           {

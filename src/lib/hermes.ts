@@ -29,6 +29,10 @@ export function loadHermes(): HermesSettings {
     // Migrate away from older Ollama defaults.
     if (/11434/.test(merged.baseUrl)) merged.baseUrl = DEFAULT_HERMES.baseUrl;
     if (merged.model === "hermes3") merged.model = DEFAULT_HERMES.model;
+    if (!isLoopbackUrl(merged.baseUrl)) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      return DEFAULT_HERMES;
+    }
     return merged;
   } catch {
     return DEFAULT_HERMES;
@@ -36,6 +40,10 @@ export function loadHermes(): HermesSettings {
 }
 
 export function saveHermes(settings: HermesSettings) {
+  if (!isLoopbackUrl(settings.baseUrl))
+    throw new Error(
+      "Use a loopback URL for local Hermes. Configure hosted secrets in workspace provider settings.",
+    );
   // API key stays on this device only — it is never sent to any backend.
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
@@ -49,7 +57,11 @@ export function isLoopbackUrl(url: string): boolean {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:") return false;
     const host = parsed.hostname.replace(/^\[|\]$/g, "");
-    return host === "127.0.0.1" || host === "localhost" || host === "::1" || host.startsWith("127.");
+    return (
+      host === "localhost" ||
+      host === "::1" ||
+      (/^127(?:\.\d{1,3}){3}$/.test(host) && host.split(".").every((part) => Number(part) <= 255))
+    );
   } catch {
     return false;
   }
@@ -111,7 +123,11 @@ function classifyNetworkError(error: unknown, loopback: boolean): HermesError {
   const raw = error instanceof Error ? error.message : String(error);
   const text = raw.toLowerCase();
 
-  if (text.includes("local network") || text.includes("address space") || text.includes("private network")) {
+  if (
+    text.includes("local network") ||
+    text.includes("address space") ||
+    text.includes("private network")
+  ) {
     return new HermesError("local-network-denied", LOCAL_NETWORK_BLOCKED_MESSAGE);
   }
   if (text.includes("cors") || text.includes("blocked by")) {
@@ -130,6 +146,7 @@ function classifyNetworkError(error: unknown, loopback: boolean): HermesError {
 }
 
 async function request(settings: HermesSettings, path: string, init: RequestInit) {
+  if (!isLoopbackUrl(settings.baseUrl)) throw new Error("Local Hermes only accepts loopback URLs.");
   const url = endpoint(settings, path);
   let response: Response;
   try {
@@ -146,10 +163,16 @@ async function request(settings: HermesSettings, path: string, init: RequestInit
   if (!response.ok) {
     const body = (await response.text()).slice(0, 300);
     if (response.status === 401 || response.status === 403) {
-      throw new HermesError("unauthorized", "Hermes rejected the API key (401). Check the key in the settings above.");
+      throw new HermesError(
+        "unauthorized",
+        "Hermes rejected the API key (401). Check the key in the settings above.",
+      );
     }
     if (response.status === 404) {
-      throw new HermesError("model-missing", `Model "${settings.model}" or this address was not found (404). ${body}`);
+      throw new HermesError(
+        "model-missing",
+        `Model "${settings.model}" or this address was not found (404). ${body}`,
+      );
     }
     throw new HermesError("unavailable", `Hermes replied with ${response.status}: ${body}`);
   }
@@ -209,7 +232,10 @@ export async function hermesChat(
       try {
         const chunk = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] };
         const piece = chunk.choices?.[0]?.delta?.content;
-        if (piece) { full += piece; options?.onToken?.(piece, full); }
+        if (piece) {
+          full += piece;
+          options?.onToken?.(piece, full);
+        }
       } catch {
         // ignore partial frames
       }
@@ -226,7 +252,11 @@ export async function hermesModels(settings: HermesSettings): Promise<string[]> 
 }
 
 /** Runs API (agent actions) — same loopback-aware transport. */
-export async function hermesStartRun(settings: HermesSettings, body: unknown, signal?: AbortSignal) {
+export async function hermesStartRun(
+  settings: HermesSettings,
+  body: unknown,
+  signal?: AbortSignal,
+) {
   const response = await request(settings, "/runs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -245,7 +275,9 @@ export async function hermesGetRun(settings: HermesSettings, id: string, signal?
 }
 
 export async function hermesStopRun(settings: HermesSettings, id: string) {
-  const response = await request(settings, `/runs/${encodeURIComponent(id)}/stop`, { method: "POST" });
+  const response = await request(settings, `/runs/${encodeURIComponent(id)}/stop`, {
+    method: "POST",
+  });
   return response.json().catch(() => ({}));
 }
 
@@ -261,7 +293,14 @@ export type HermesTestResult = {
 export async function hermesTestConnection(settings: HermesSettings): Promise<HermesTestResult> {
   const permission = await checkLocalNetworkPermission();
   if (permission === "denied" && isLoopbackUrl(settings.baseUrl)) {
-    return { ok: false, kind: "local-network-denied", message: LOCAL_NETWORK_BLOCKED_MESSAGE, latencyMs: 0, models: [], hasModel: false };
+    return {
+      ok: false,
+      kind: "local-network-denied",
+      message: LOCAL_NETWORK_BLOCKED_MESSAGE,
+      latencyMs: 0,
+      models: [],
+      hasModel: false,
+    };
   }
   const started = performance.now();
   try {
@@ -278,14 +317,34 @@ export async function hermesTestConnection(settings: HermesSettings): Promise<He
         hasModel,
       };
     }
-    return { ok: true, message: `Connected to "${settings.model}" in ${latencyMs} ms.`, latencyMs, models, hasModel };
+    return {
+      ok: true,
+      message: `Connected to "${settings.model}" in ${latencyMs} ms.`,
+      latencyMs,
+      models,
+      hasModel,
+    };
   } catch (error) {
     const latencyMs = Math.round(performance.now() - started);
     if (error instanceof HermesError) {
-      return { ok: false, kind: error.kind, message: error.message, latencyMs, models: [], hasModel: false };
+      return {
+        ok: false,
+        kind: error.kind,
+        message: error.message,
+        latencyMs,
+        models: [],
+        hasModel: false,
+      };
     }
     if (error instanceof Error && error.name === "AbortError") throw error;
-    return { ok: false, kind: "unknown", message: "Hermes could not be reached.", latencyMs, models: [], hasModel: false };
+    return {
+      ok: false,
+      kind: "unknown",
+      message: "Hermes could not be reached.",
+      latencyMs,
+      models: [],
+      hasModel: false,
+    };
   }
 }
 
@@ -318,12 +377,23 @@ export function parsePartialObjects<T>(text: string): T[] {
       else if (char === '"') inString = false;
       continue;
     }
-    if (char === '"') { inString = true; continue; }
-    if (char === "{") { if (depth === 0) start = i; depth += 1; continue; }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+      continue;
+    }
     if (char === "}") {
       depth -= 1;
       if (depth === 0 && start !== -1) {
-        try { out.push(JSON.parse(source.slice(start, i + 1)) as T); } catch { /* skip */ }
+        try {
+          out.push(JSON.parse(source.slice(start, i + 1)) as T);
+        } catch {
+          /* skip */
+        }
         start = -1;
       }
     }
@@ -348,7 +418,8 @@ export async function hermesDiscover(settings: HermesSettings): Promise<HermesDi
     const started = performance.now();
     try {
       const models = await hermesModels({ ...settings, baseUrl });
-      if (models.length) return { baseUrl, models, latencyMs: Math.round(performance.now() - started) };
+      if (models.length)
+        return { baseUrl, models, latencyMs: Math.round(performance.now() - started) };
     } catch {
       // try the next address
     }

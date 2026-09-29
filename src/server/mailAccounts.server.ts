@@ -107,15 +107,15 @@ export async function gmail(account: MailAccountRow, path: string, init?: Reques
     throw new Error("RECONNECT_REQUIRED");
   }
   if (!res.ok) {
-    const body = await res.text();
-    console.error(`Gmail call failed [${res.status}] ${path}: ${body}`);
-    throw new Error(`Gmail request failed (${res.status}): ${body.slice(0, 300)}`);
+    console.error(`Gmail provider request failed (${res.status})`);
+    throw new Error(
+      `Gmail request failed (${res.status}); check provider connection and permissions.`,
+    );
   }
   return res.json() as Promise<any>;
 }
 
-const b64 = (s: string) =>
-  Buffer.from(new TextEncoder().encode(s)).toString("base64");
+const b64 = (s: string) => Buffer.from(new TextEncoder().encode(s)).toString("base64");
 const headerValue = (v: string) => (/^[\x00-\x7F]*$/.test(v) ? v : `=?UTF-8?B?${b64(v)}?=`);
 
 export function buildRawEmail(opts: {
@@ -127,6 +127,16 @@ export function buildRawEmail(opts: {
   inReplyTo?: string | null;
   references?: string | null;
 }) {
+  for (const value of [
+    opts.to,
+    opts.from,
+    opts.fromName,
+    opts.subject,
+    opts.inReplyTo,
+    opts.references,
+  ]) {
+    if (value && /[\r\n]/.test(value)) throw new Error("Email headers cannot contain line breaks");
+  }
   const lines = [`To: ${opts.to}`];
   if (opts.from) {
     lines.push(
@@ -134,7 +144,11 @@ export function buildRawEmail(opts: {
     );
   }
   lines.push(`Subject: ${headerValue(opts.subject)}`);
-  if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`, `References: ${opts.references ?? opts.inReplyTo}`);
+  if (opts.inReplyTo)
+    lines.push(
+      `In-Reply-To: ${opts.inReplyTo}`,
+      `References: ${opts.references ?? opts.inReplyTo}`,
+    );
   lines.push("MIME-Version: 1.0", 'Content-Type: text/plain; charset="UTF-8"', "", opts.body);
   return b64(lines.join("\r\n")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

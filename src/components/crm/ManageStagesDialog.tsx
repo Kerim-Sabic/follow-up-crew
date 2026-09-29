@@ -32,7 +32,7 @@ export function ManageStagesDialog() {
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["lead-stages"] });
-    queryClient.invalidateQueries({ queryKey: ["leads"] });
+    queryClient.invalidateQueries({ predicate: (query) => ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])) });
   };
 
   const add = useMutation({

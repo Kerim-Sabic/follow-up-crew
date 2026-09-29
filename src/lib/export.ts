@@ -2,12 +2,20 @@ import type { Lead } from "./crm";
 import { leadStage } from "./crm";
 
 function csvCell(value: string | number | null | undefined) {
-  const text = value === null || value === undefined ? "" : String(value);
+  const raw = value === null || value === undefined ? "" : String(value);
+  const text = /^[\s]*[=+@\-\t\r]/.test(raw) ? "\'" + raw : raw;
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export function downloadCsv(filename: string, header: string[], rows: (string | number | null)[][]) {
-  const csv = [header.map(csvCell).join(","), ...rows.map((row) => row.map(csvCell).join(","))].join("\n");
+export function downloadCsv(
+  filename: string,
+  header: string[],
+  rows: (string | number | null)[][],
+) {
+  const csv = [
+    header.map(csvCell).join(","),
+    ...rows.map((row) => row.map(csvCell).join(",")),
+  ].join("\n");
   const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }));
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -22,7 +30,10 @@ function splitName(lead: Lead) {
     const parts = full.split(/\s+/);
     return { first: parts[0] ?? "", last: parts.slice(1).join(" ") };
   }
-  const handle = lead.username.replace(/^@/, "").replace(/[._\-0-9]+/g, " ").trim();
+  const handle = lead.username
+    .replace(/^@/, "")
+    .replace(/[._\-0-9]+/g, " ")
+    .trim();
   const parts = handle.split(/\s+/).filter(Boolean);
   return { first: parts[0] ?? handle, last: parts.slice(1).join(" ") };
 }
@@ -63,7 +74,17 @@ export function exportListKit(leads: Lead[], filename = "listkit-leads.csv") {
 export function exportFullLeads(leads: Lead[], filename = "leads.csv") {
   downloadCsv(
     filename,
-    ["Number", "Username", "Full name", "Email", "Instagram", "Niche", "Score", "Stage", "Last touched"],
+    [
+      "Number",
+      "Username",
+      "Full name",
+      "Email",
+      "Instagram",
+      "Niche",
+      "Score",
+      "Stage",
+      "Last touched",
+    ],
     leads.map((lead) => [
       lead.number,
       lead.username,

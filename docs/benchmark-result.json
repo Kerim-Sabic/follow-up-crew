@@ -1,0 +1,20 @@
+{
+  "label": "SYNTHETIC FIXTURE ONLY — not real creators",
+  "timestamp": "2026-09-29T18:18:20.773Z",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 7950X 16-Core Processor            ",
+    "node": "v22.18.0",
+    "database": "PGlite embedded PostgreSQL; single session, no network latency"
+  },
+  "syntheticRows": 100000,
+  "seedMs": 18325.5929,
+  "queries": 40,
+  "concurrency": 1,
+  "p50Ms": 3.51680000000124,
+  "p95Ms": 4.323699999997189,
+  "maximumRows": 101,
+  "maximumBytes": 48665,
+  "limits": "Only keyset pagination and filters measured. Durable bulk/export and true concurrent PostgreSQL benchmark remain untested."
+}

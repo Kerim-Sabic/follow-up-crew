@@ -3,12 +3,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 export type LeadStatus = string;
 export type BaseStatus = Database["public"]["Enums"]["lead_status"];
-export type Workspace = Database["public"]["Enums"]["workspace_key"];
+export type Workspace = string;
 
-export const WORKSPACES: { value: Workspace; label: string; description: string }[] = [
-  { value: "docmesker", label: "DocMesKer", description: "Original outreach list" },
-  { value: "justin", label: "Justin", description: "Curated creator list" },
-];
 export type Lead = Database["public"]["Tables"]["leads"]["Row"];
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type LeadNote = Database["public"]["Tables"]["lead_notes"]["Row"];
@@ -70,14 +66,54 @@ export type StageMeta = {
 };
 
 export const STAGE_COLORS: { value: string; label: string; className: string; dot: string }[] = [
-  { value: "slate", label: "Grey", className: "bg-slate-500/12 text-slate-600 dark:text-slate-300", dot: "bg-slate-500" },
-  { value: "blue", label: "Blue", className: "bg-blue-500/12 text-blue-600 dark:text-blue-300", dot: "bg-blue-500" },
-  { value: "violet", label: "Violet", className: "bg-violet-500/12 text-violet-600 dark:text-violet-300", dot: "bg-violet-500" },
-  { value: "emerald", label: "Green", className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300", dot: "bg-emerald-500" },
-  { value: "amber", label: "Amber", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300", dot: "bg-amber-500" },
-  { value: "rose", label: "Red", className: "bg-rose-500/12 text-rose-600 dark:text-rose-300", dot: "bg-rose-500" },
-  { value: "cyan", label: "Cyan", className: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-300", dot: "bg-cyan-500" },
-  { value: "orange", label: "Orange", className: "bg-orange-500/14 text-orange-600 dark:text-orange-300", dot: "bg-orange-500" },
+  {
+    value: "slate",
+    label: "Grey",
+    className: "bg-slate-500/12 text-slate-600 dark:text-slate-300",
+    dot: "bg-slate-500",
+  },
+  {
+    value: "blue",
+    label: "Blue",
+    className: "bg-blue-500/12 text-blue-600 dark:text-blue-300",
+    dot: "bg-blue-500",
+  },
+  {
+    value: "violet",
+    label: "Violet",
+    className: "bg-violet-500/12 text-violet-600 dark:text-violet-300",
+    dot: "bg-violet-500",
+  },
+  {
+    value: "emerald",
+    label: "Green",
+    className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+    dot: "bg-emerald-500",
+  },
+  {
+    value: "amber",
+    label: "Amber",
+    className: "bg-amber-500/14 text-amber-600 dark:text-amber-300",
+    dot: "bg-amber-500",
+  },
+  {
+    value: "rose",
+    label: "Red",
+    className: "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+    dot: "bg-rose-500",
+  },
+  {
+    value: "cyan",
+    label: "Cyan",
+    className: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-300",
+    dot: "bg-cyan-500",
+  },
+  {
+    value: "orange",
+    label: "Orange",
+    className: "bg-orange-500/14 text-orange-600 dark:text-orange-300",
+    dot: "bg-orange-500",
+  },
 ];
 
 export function colorMeta(color: string) {
@@ -99,11 +135,22 @@ export function toStageMeta(stage: Stage): StageMeta {
 
 export function setStatusRegistry(stages: StageMeta[]) {
   if (!stages.length) return;
-  const next = stages.map((stage) => ({ value: stage.value, label: stage.label, className: stage.className, dot: stage.dot }));
-  const same = next.length === STATUSES.length && next.every((item, index) => {
-    const current = STATUSES[index]!;
-    return current.value === item.value && current.label === item.label && current.className === item.className;
-  });
+  const next = stages.map((stage) => ({
+    value: stage.value,
+    label: stage.label,
+    className: stage.className,
+    dot: stage.dot,
+  }));
+  const same =
+    next.length === STATUSES.length &&
+    next.every((item, index) => {
+      const current = STATUSES[index]!;
+      return (
+        current.value === item.value &&
+        current.label === item.label &&
+        current.className === item.className
+      );
+    });
   if (same) return;
   STATUSES.splice(0, STATUSES.length, ...next);
 }
@@ -123,7 +170,11 @@ export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
 }
 
 export function stageKey(label: string) {
-  const base = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const base = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
   return (base || "stage") + "_" + Math.random().toString(36).slice(2, 6);
 }
 
@@ -148,7 +199,10 @@ export async function createStage(
   return data;
 }
 
-export async function renameStage(id: string, patch: { label?: string; color?: string; position?: number }) {
+export async function renameStage(
+  id: string,
+  patch: { label?: string; color?: string; position?: number },
+) {
   const { error } = await supabase.from("lead_stages").update(patch).eq("id", id);
   if (error) throw error;
 }
@@ -172,28 +226,20 @@ export async function deleteStage(stage: Stage) {
   if (error) throw error;
 }
 
-const PAGE = 1000;
-
 export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
-  const all: Lead[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("workspace", workspace)
-      .order("number", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    all.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
-  }
-  return all;
-}
-
-export async function fetchProfiles(): Promise<Profile[]> {
-  const { data, error } = await supabase.from("profiles").select("*");
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*")
+    .eq("workspace", workspace)
+    .order("id")
+    .limit(100);
   if (error) throw error;
   return data ?? [];
+}
+
+export async function fetchProfiles(workspace: string): Promise<Profile[]> {
+  const { rpc } = await import("./creator-api");
+  return rpc<Profile[]>("workspace_profiles", { w: workspace });
 }
 
 export async function fetchNotes(leadId: string): Promise<LeadNote[]> {
@@ -238,7 +284,11 @@ async function nextNumber(workspace: Workspace) {
   return (data?.number ?? 0) + 1;
 }
 
-export async function createLead(input: NewLeadInput, userId: string, workspace: Workspace): Promise<Lead> {
+export async function createLead(
+  input: NewLeadInput,
+  userId: string,
+  workspace: Workspace,
+): Promise<Lead> {
   const start = await nextNumber(workspace);
   const username = input.username.trim().replace(/^@/, "");
   const status = input.status ?? "not_contacted";
@@ -340,9 +390,29 @@ export function formatWhen(value: string | null) {
  */
 export type QualityBreakdown = { label: string; points: number }[];
 
-export const NICHES_WITH_BUYERS = ["health", "wealth", "relationship", "fitness", "business", "finance", "dating", "money", "coach", "nutrition", "wellness", "strength", "beauty", "education", "marketing", "real estate"];
+export const NICHES_WITH_BUYERS = [
+  "health",
+  "wealth",
+  "relationship",
+  "fitness",
+  "business",
+  "finance",
+  "dating",
+  "money",
+  "coach",
+  "nutrition",
+  "wellness",
+  "strength",
+  "beauty",
+  "education",
+  "marketing",
+  "real estate",
+];
 
-type QualityLead = Pick<Lead, "email" | "niche" | "curation" | "score" | "match_note" | "evidence" | "full_name" | "username">;
+type QualityLead = Pick<
+  Lead,
+  "email" | "niche" | "curation" | "score" | "match_note" | "evidence" | "full_name" | "username"
+>;
 
 type QualityContext = { maxScore: number; highCut: number; mediumCut: number; size: number };
 
@@ -359,16 +429,28 @@ function nicheFit(niche: string) {
 function rawQuality(lead: QualityLead, ctx: QualityContext) {
   const parts: { label: string; weight: number; value: number }[] = [];
 
-  parts.push({ label: lead.email?.trim() ? "Email on file — can be reached" : "No email yet", weight: WEIGHTS.email, value: lead.email?.trim() ? 1 : 0 });
+  parts.push({
+    label: lead.email?.trim() ? "Email on file — can be reached" : "No email yet",
+    weight: WEIGHTS.email,
+    value: lead.email?.trim() ? 1 : 0,
+  });
 
   const fit = nicheFit(lead.niche ?? "");
   if (fit !== null) {
-    parts.push({ label: fit === 1 ? `Niche with buyers (${lead.niche})` : `Niche: ${lead.niche}`, weight: WEIGHTS.niche, value: fit });
+    parts.push({
+      label: fit === 1 ? `Niche with buyers (${lead.niche})` : `Niche: ${lead.niche}`,
+      weight: WEIGHTS.niche,
+      value: fit,
+    });
   }
 
   const curation = lead.curation?.trim().toUpperCase();
   if (curation) {
-    parts.push({ label: curation === "KEEP" ? "Kept in review" : "Rejected in review", weight: WEIGHTS.curation, value: curation === "KEEP" ? 1 : 0 });
+    parts.push({
+      label: curation === "KEEP" ? "Kept in review" : "Rejected in review",
+      weight: WEIGHTS.curation,
+      value: curation === "KEEP" ? 1 : 0,
+    });
   }
 
   if (typeof lead.score === "number") {
@@ -380,7 +462,11 @@ function rawQuality(lead: QualityLead, ctx: QualityContext) {
   if (lead.full_name?.trim()) richness += 0.35;
   if (lead.evidence?.trim()) richness += 0.4;
   if ((lead.match_note ?? "").trim().length > 40) richness += 0.25;
-  parts.push({ label: "Profile detail we hold", weight: WEIGHTS.profile, value: Math.min(1, richness) });
+  parts.push({
+    label: "Profile detail we hold",
+    weight: WEIGHTS.profile,
+    value: Math.min(1, richness),
+  });
 
   const knownWeight = parts.reduce((sum, part) => sum + part.weight, 0);
   const earned = parts.reduce((sum, part) => sum + part.weight * part.value, 0);
@@ -389,35 +475,59 @@ function rawQuality(lead: QualityLead, ctx: QualityContext) {
 
   const breakdown: QualityBreakdown = parts
     .filter((part) => part.value > 0)
-    .map((part) => ({ label: part.label, points: Math.round((part.weight * part.value) / (knownWeight || 1) * 100) }));
+    .map((part) => ({
+      label: part.label,
+      points: Math.round(((part.weight * part.value) / (knownWeight || 1)) * 100),
+    }));
 
-  return { score, breakdown, confidence: Math.round((knownWeight / totalWeight) * 100), missing: parts.length < 5 };
+  return {
+    score,
+    breakdown,
+    confidence: Math.round((knownWeight / totalWeight) * 100),
+    missing: parts.length < 5,
+  };
 }
 
 /** Recomputes the relative grading curve for the current workspace list. */
 export function setQualityContext(leads: QualityLead[]) {
   if (!leads.length) return;
-  const maxScore = Math.max(1, ...leads.map((lead) => (typeof lead.score === "number" ? lead.score : 0)));
+  const maxScore = Math.max(
+    1,
+    ...leads.map((lead) => (typeof lead.score === "number" ? lead.score : 0)),
+  );
   const base: QualityContext = { maxScore, highCut: 999, mediumCut: 999, size: leads.length };
   const scores = leads.map((lead) => rawQuality(lead, base).score).sort((a, b) => a - b);
   const at = (p: number) => scores[Math.min(scores.length - 1, Math.floor(scores.length * p))] ?? 0;
   QUALITY_CTX = { maxScore, highCut: at(0.8), mediumCut: at(0.45), size: leads.length };
 }
 
-export function leadQualityScore(lead: QualityLead): { score: number; tier: "high" | "medium" | "low"; breakdown: QualityBreakdown; confidence: number } {
+export function leadQualityScore(lead: QualityLead): {
+  score: number;
+  tier: "high" | "medium" | "low";
+  breakdown: QualityBreakdown;
+  confidence: number;
+} {
   const { score, breakdown, confidence } = rawQuality(lead, QUALITY_CTX);
-  const tier = score >= QUALITY_CTX.highCut ? "high" : score >= QUALITY_CTX.mediumCut ? "medium" : "low";
+  const tier =
+    score >= QUALITY_CTX.highCut ? "high" : score >= QUALITY_CTX.mediumCut ? "medium" : "low";
   return { score, tier, breakdown, confidence };
 }
 
 export function qualityTierMeta(tier: "high" | "medium" | "low") {
-  if (tier === "high") return { label: "Top of list", className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" };
-  if (tier === "medium") return { label: "Promising", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300" };
-  return { label: "Lower priority", className: "bg-slate-500/12 text-slate-600 dark:text-slate-300" };
+  if (tier === "high")
+    return {
+      label: "Top of list",
+      className: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+    };
+  if (tier === "medium")
+    return { label: "Promising", className: "bg-amber-500/14 text-amber-600 dark:text-amber-300" };
+  return {
+    label: "Lower priority",
+    className: "bg-slate-500/12 text-slate-600 dark:text-slate-300",
+  };
 }
 
 /** Sort leads best-first by monetizable audience quality. */
 export function byQuality<T extends QualityLead>(leads: T[]): T[] {
   return [...leads].sort((a, b) => leadQualityScore(b).score - leadQualityScore(a).score);
 }
-

@@ -49,7 +49,7 @@ export function LeadPanel({
 
   const claimMutation = useMutation({
     mutationFn: (next: string | null) => claimLead(lead.id, next),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leads"] }),
+    onSuccess: () => queryClient.invalidateQueries({ predicate: (query) => ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])) }),
     onError: (error: Error) => toast.error(error.message),
   });
 
