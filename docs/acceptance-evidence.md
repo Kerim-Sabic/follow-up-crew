@@ -1,6 +1,6 @@
 # Acceptance evidence
 
-Date: 2026-09-29. Baseline: `a3113ef60d5b0714e339d9a77048ebc4761676b7`.
+Date: 2026-09-29. Baseline: `a3113ef60d5b0714e339d9a77048ebc4761676b7`. Phase 2 source: local `0ed6d63` on `codex/creator-partnership-intelligence`, published as an ordinary feature branch before new changes.
 
 ## Repository inspection
 
@@ -9,9 +9,12 @@ Read AGENTS.md, all baseline Drizzle migrations, authentication middleware, work
 ## Executed checks
 
 - `npm run typecheck`: PASS.
-- `npm test`: PASS, 9 tests (8 top-level plus one nested HTTP test), zero skipped/failed. Tests prohibit external fetch except the explicitly mocked DeepSeek test.
+- `npm test`: PASS, 11 tests (9 top-level plus two nested HTTP fixtures), zero skipped/failed. External fetch is prohibited except the explicitly mocked DeepSeek and Brave tests. The Brave fixture checks tariff-estimate labelling and rejection of a duplicate paid retrieval.
 - `npm run build`: PASS with the existing default deployment configuration. This is a build, not a deployment or proof that the target supports the configured PostgreSQL connection.
-- ESLint on newly added TypeScript/TSX files: PASS. Full repository lint: FAIL, 8,899 problems (8,884 errors, 15 warnings), compared with baseline 11,299 problems (11,285 errors, 14 warnings). No lint rule was disabled. Most failures are inherited formatting; full lint is not a passing release gate.
+- Full repository `npm run lint`: PASS with 0 errors, 14 warnings. Existing formatting was corrected without disabling rules. Warnings are React hook dependency and fast-refresh notices.
+- `NITRO_PRESET=node-server npm run build`: PASS; local Node server started and returned HTTP 200 for `/` and `/auth`. This is unauthenticated runtime smoke, not staging authentication or production deployment.
+- `scripts/real-postgres-fixture.ts`: PASS on PostgreSQL 18 in local WSL. An old-schema database with two leads and a note was backed up with `pg_dump`, restored to a separate database and checked, then migration rollback rehearsal and apply ran through 0010. Separate authenticated synthetic user sessions proved RLS isolation. A non-superuser BYPASSRLS backend role ran the production service. Two separate PostgreSQL connections competed for one budget slot: one succeeded, one was denied; invoice reconciliation was immutable and changed the next budget decision. A bulk export recovered an expired lease, its download token was one-use, and an intervening stage edit was skipped.
+- `scripts/real-postgres-scale.ts`: PASS on the same isolated PostgreSQL fixture. Inserted 100,000 synthetic leads in 1,000-row transactions in 23,605 ms; all-matching snapshot took 780 ms; 1,000 worker units processed the export in 53,136 ms; streamed 9,488,960 bytes and exactly 100,001 CSV lines. This measures local server-side work, not 100,000 real discovered creators or browser throughput. A single 100,000-row insertion failed the local server's `max_locks_per_transaction`; the script uses bounded transactions. The WSL server required a persistent process during the test.
 - `npm audit --omit=dev --json`: zero reported production dependency vulnerabilities at execution time. Full install reports four moderate development dependency findings; no forced breaking upgrades performed.
 - Public browser smoke using agent-browser: landing and sign-in rendered, sign-in controls present, browser error report empty. The new public proposal page without a token displays its explicit invalid-link alert after hydration, with no browser errors. No authenticated browser flow claimed.
 - `npm run founders`: all three PENDING_PROVISIONING due to missing privileged configuration; no mail sent.
@@ -24,13 +27,13 @@ Read AGENTS.md, all baseline Drizzle migrations, authentication middleware, work
 | Tenant isolation               | database.test.ts: private RLS denial, forged scope denied; service.test.ts: unauthorized actor denied                                    | Live API/storage/realtime/export/browser negative matrix                                                                 |
 | Invitations                    | Fixture expired/mismatched identity/replay denied, acceptance exposes named team only, revoke removes access                                     | Browser acceptance and live invitation delivery                                                            |
 | Founders                       | Verified bootstrap idempotence; forged/unverified metadata denied; protected membership; changed email withdraws privilege               | Three actual verified Auth UUIDs and deployed membership/entitlement report                                              |
-| Preserve data                  | Clean and seeded legacy migrations; retained lead/note rows and relationship; ambiguous legacy scope isolated                            | Production-shaped backup restoration, duplicate/orphan/failure drills, actual counts                                     |
+| Preserve data                  | Clean and seeded migrations plus local PostgreSQL backup/restore and rollback rehearsal retained lead/note rows and relationship; ambiguous legacy scope isolated | Authorized staging copy and deployed-schema comparison, duplicate/orphan/failure drills |
 | Filters                        | Missing/rounded/stale/future/partial/search-only values do not pass; Modash optional fields fail closed                                  | Authorized current observations from real profiles                                                                       |
 | No fake discovery              | Old generated discovery page removed; missing server credentials produce setup error; HTTP tests explicitly mocked                       | Live source access/coverage and partial/error payloads                                                                   |
-| Usage                          | Cache hit+miss/output math, missing/inconsistent usage pending; encrypted fixture key; actual service settlement/attribution             | Provider invoice matching, varied rates/currencies, ambiguous network outcomes                                           |
-| Atomic budgets/jobs            | SQL locked reservation; sequential overspend and duplicate denied; completed job redelivery does not duplicate                           | PGlite socket is single-session: true concurrent PostgreSQL races, mid-request crash, pause/revoke under load NOT proven |
+| Usage                          | Cache hit+miss/output math, missing/inconsistent usage pending; encrypted fixture key; immutable tariff-estimate and invoice records; actor attribution | Actual provider invoice matching, shared provider-account caps, varied rates/currencies, ambiguous network outcomes |
+| Atomic budgets/jobs            | SQL locked reservation tested through separate local PostgreSQL connections; competing requests one accepted/one denied, duplicate invoice rejected; bulk lease expiry recovered | Paid-request midflight crashes and real provider invoices; staging traffic |
 | Grounded outreach              | Exact extractive-template checker rejects fabricated additions and injection; changed bio invalidates approval/manual record             | Freeform claim checker, authorized live delivery, suppression arriving during in-flight network call                     |
-| Scale                          | 100,000 synthetic inserts; bounded page/filter timings, bytes and row counts                                                             | Concurrent backend/browser load, durable bulk jobs and full-workspace exports                                            |
+| Scale                          | 100,000 synthetic rows and durable all-matching export through local PostgreSQL, with measured snapshot/worker/byte/line counts | Multi-connection authenticated API/browser load and target-host SLOs |
 | Preferences/proposals/handoff  | Production service fixture covers explicit feedback, versioned preferences, limited share projection/revocation, agreement-based handoff | Negative-example retrieval learning, live recipient and account revocation browser tests                                 |
 | Existing CRM/auth/mail/billing | Typecheck/build, public auth smoke; mailbox ownership/resource checks implemented                                                        | Authenticated end-to-end regression and billing webhooks NOT complete                                                    |
 
@@ -40,7 +43,7 @@ The benchmark uses embedded PGlite PostgreSQL on local Windows, no network laten
 
 ## External integration truth
 
-DeepSeek HTTP is fixture-tested; Brave and Modash network retrieval are implemented but not live-tested. Modash's optional field mapping is separately fixture-tested. The public Supabase values already in the repository were preserved; no service key, creator database URL, or paid-provider credential was supplied. Docker engine is unavailable, so worker container execution is untested. No migrations applied to a remote database, no purchase, no provider generation charge, no outreach, no live proposal sharing, no deployment.
+DeepSeek HTTP is fixture-tested; Brave and Modash network retrieval are implemented but not live-tested. Modash's optional field mapping is separately fixture-tested. The public Supabase values already in the repository were preserved; no staging service key, creator staging database URL, or paid-provider credential was supplied. `.env.local` was absent at this check. Docker engine is unavailable, so worker container execution is untested. No migrations applied to a remote database, no purchase, no provider generation charge, no outreach, no live proposal sharing, no deployment. The user has indicated they can configure staging access, but no real staging identity or connection has yet been verified.
 
 ## Documentation consulted
 

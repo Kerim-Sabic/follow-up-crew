@@ -23,6 +23,21 @@ export type MailAccountRow = {
   last_synced_at: string | null;
   created_at: string;
 };
+type GmailPart = {
+  mimeType?: string;
+  body?: { data?: string };
+  headers?: { name: string; value: string }[];
+  parts?: GmailPart[];
+};
+export type GmailResponse = {
+  id?: string;
+  threadId?: string;
+  emailAddress?: string;
+  messages?: GmailResponse[];
+  payload?: GmailPart;
+  snippet?: string;
+  internalDate?: string;
+};
 
 export async function listAccounts(userId: string): Promise<MailAccountRow[]> {
   const { data, error } = await supabaseAdmin
@@ -112,11 +127,12 @@ export async function gmail(account: MailAccountRow, path: string, init?: Reques
       `Gmail request failed (${res.status}); check provider connection and permissions.`,
     );
   }
-  return res.json() as Promise<any>;
+  return res.json() as Promise<GmailResponse>;
 }
 
 const b64 = (s: string) => Buffer.from(new TextEncoder().encode(s)).toString("base64");
-const headerValue = (v: string) => (/^[\x00-\x7F]*$/.test(v) ? v : `=?UTF-8?B?${b64(v)}?=`);
+const headerValue = (v: string) =>
+  Array.from(v).every((character) => character.charCodeAt(0) <= 127) ? v : `=?UTF-8?B?${b64(v)}?=`;
 
 export function buildRawEmail(opts: {
   to: string;
@@ -153,17 +169,17 @@ export function buildRawEmail(opts: {
   return b64(lines.join("\r\n")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export function headerOf(message: any, name: string): string {
+export function headerOf(message: GmailResponse, name: string): string {
   const headers = message?.payload?.headers ?? [];
-  const found = headers.find((h: any) => String(h.name).toLowerCase() === name.toLowerCase());
+  const found = headers.find((h) => h.name.toLowerCase() === name.toLowerCase());
   return found?.value ?? "";
 }
 
 /** Extracts a readable plain-text body from a Gmail message payload. */
-export function plainTextOf(message: any): string {
+export function plainTextOf(message: GmailResponse): string {
   const decode = (data: string) =>
     Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
-  const walk = (part: any): string => {
+  const walk = (part: GmailPart | undefined): string => {
     if (!part) return "";
     if (part.mimeType === "text/plain" && part.body?.data) return decode(part.body.data);
     for (const child of part.parts ?? []) {

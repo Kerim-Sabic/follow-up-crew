@@ -5,9 +5,15 @@ export const Route = createFileRoute("/oauth/google-mail/return")({
   head: () => ({
     meta: [
       { title: "Connecting mailbox — Outreach CRM" },
-      { name: "description", content: "Finishing the Gmail connection for your Outreach CRM mailbox." },
+      {
+        name: "description",
+        content: "Finishing the Gmail connection for your Outreach CRM mailbox.",
+      },
       { property: "og:title", content: "Connecting mailbox — Outreach CRM" },
-      { property: "og:description", content: "Finishing the Gmail connection for your Outreach CRM mailbox." },
+      {
+        property: "og:description",
+        content: "Finishing the Gmail connection for your Outreach CRM mailbox.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

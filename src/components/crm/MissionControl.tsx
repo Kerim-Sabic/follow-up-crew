@@ -5,13 +5,16 @@ import { toast } from "sonner";
 import { creatorCommand } from "@/lib/creator.functions";
 import { useWorkspace } from "@/lib/workspace";
 import { useAuth } from "@/lib/auth";
-import { qualify, type MissionSpec, type Observation } from "@/lib/mission-domain";
+import { compileBrief, qualify, type MissionSpec, type Observation } from "@/lib/mission-domain";
 import { Button } from "@/components/ui/button";
 import { TeamManagement } from "./TeamManagement";
 import { LocalHermes } from "./LocalHermes";
 import { EvidenceReview } from "./EvidenceReview";
 import { PartnershipOperations } from "./PartnershipOperations";
+import { ProviderSetup } from "./ProviderSetup";
+import { UsageLedger, type UsageAttempt, type UsageGroup } from "./UsageLedger";
 import { invitationHash, rpc } from "@/lib/creator-api";
+import { nanosToUsd, usdToNanos } from "@/lib/money";
 
 type Overview = {
   founders: {
@@ -57,17 +60,14 @@ type Overview = {
     models: string[];
     rights_confirmed: boolean;
     validated_at: string | null;
+    configuration: Record<string, unknown>;
   }[];
-  usage: {
-    actor: string;
-    provider: string;
-    currency: string;
-    attempts: number;
-    settled_nanos: string;
-    pending_nanos: string;
-  }[];
+  usage: UsageGroup[];
+  attempts: UsageAttempt[];
   feedback: { topic: string; decision: string; reason: string }[];
   replies: { id: string; subject: string }[];
+  followups: { id: string; username: string; last_touched_at: string }[];
+  approvedDrafts: { id: string; username: string; approved_at: string }[];
   proposals: {
     id: string;
     lead_id: string;
@@ -83,7 +83,11 @@ type Overview = {
     agreed_terms: string;
   }[];
   limits: { daily_nanos: string; monthly_nanos: string; research_enabled: boolean }[];
-  preferences: { id: string; reason: string; preferences: { topics: string[] } }[];
+  preferences: {
+    id: string;
+    reason: string;
+    preferences: { topics: string[]; avoidTopics?: string[] };
+  }[];
 };
 const field = "w-full rounded-md border border-input bg-card px-3 py-2 text-sm";
 const defaults: MissionSpec = {
@@ -128,10 +132,6 @@ export function MissionControl({
   const [spec, setSpec] = useState<MissionSpec>(defaults);
   const [csv, setCsv] = useState("");
   const [ai, setAi] = useState(false);
-  const [provider, setProvider] = useState<"deepseek" | "brave" | "modash">("deepseek");
-  const [key, setKey] = useState("");
-  const [config, setConfig] = useState("{}");
-  const [rights, setRights] = useState(false);
   const [daily, setDaily] = useState("0");
   const [monthly, setMonthly] = useState("0");
   const [research, setResearch] = useState(false);
@@ -141,6 +141,8 @@ export function MissionControl({
   const [invitationId, setInvitationId] = useState("");
   const [reason, setReason] = useState("");
   const [topics, setTopics] = useState("");
+  const [avoidTopics, setAvoidTopics] = useState("");
+  const [feedbackReason, setFeedbackReason] = useState("");
   const query = useQuery({
     queryKey: ["creator", user?.id, workspace],
     queryFn: async () =>
@@ -230,6 +232,17 @@ export function MissionControl({
             filters; free text does not silently alter them. Teaching fit requires observed content
             and human review.
           </p>
+          <div className="rounded border p-3 text-sm">
+            <p className="font-medium">Suggested fields from your brief</p>
+            <p>{compileBrief(spec.objective).explanations.join(" · ")}</p>
+            <Button
+              className="mt-2"
+              variant="outline"
+              onClick={() => setSpec({ ...spec, ...compileBrief(spec.objective).suggestions })}
+            >
+              Apply suggestions to editable fields
+            </Button>
+          </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Minimum followers">
               <input
@@ -447,6 +460,41 @@ export function MissionControl({
         ))}
       {tab === "review" && (
         <>
+          <section className="space-y-2 rounded border p-4" aria-label="Next actions">
+            <h2 className="font-semibold">Next actions</h2>
+            <p className="text-xs text-muted-foreground">
+              Workspace-scoped, owner-aware items. Contacted leads use the CRM's two-day follow-up
+              rule; check the actual conversation before acting.
+            </p>
+            {data?.replies.length ? (
+              <a className="block text-sm underline" href="/inbox">
+                {data.replies.length} unread replies in your mailbox
+              </a>
+            ) : null}
+            {data?.followups.map((lead) => (
+              <a key={lead.id} className="block text-sm underline" href="/follow-ups">
+                @{lead.username} · contacted more than two days ago
+              </a>
+            ))}
+            {data?.approvedDrafts.map((draft) => (
+              <p key={draft.id} className="text-sm">
+                @{draft.username} · approved draft awaiting manual action; inspect current evidence
+                before contact
+              </p>
+            ))}
+            {!data?.replies.length && !data?.followups.length && !data?.approvedDrafts.length && (
+              <p className="text-sm">
+                No replies, older contacts or approved drafts need your attention in this workspace.
+              </p>
+            )}
+          </section>
+          <Field label="Why this creator fits or misses the partnership (required for example feedback)">
+            <input
+              className={field}
+              value={feedbackReason}
+              onChange={(e) => setFeedbackReason(e.target.value)}
+            />
+          </Field>
           {!data?.drafts.length && (
             <section className="rounded-lg border p-8">
               <h2 className="text-lg font-semibold">No reviewable drafts yet</h2>
@@ -536,13 +584,13 @@ export function MissionControl({
                   </Button>
                   <Button
                     variant="outline"
-                    disabled={busy}
+                    disabled={busy || !feedbackReason.trim()}
                     onClick={async () => {
                       const r = await run({
                         action: "feedback",
                         leadId: d.lead_id,
                         decision: "strong_fit",
-                        reason: "Operator selected this observed teaching topic as a strong fit",
+                        reason: feedbackReason,
                       });
                       if (r?.["proposedTopic"]) {
                         setTopics(String(r["proposedTopic"]));
@@ -551,6 +599,24 @@ export function MissionControl({
                     }}
                   >
                     Strong fit: propose preference
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy || !feedbackReason.trim()}
+                    onClick={async () => {
+                      const r = await run({
+                        action: "feedback",
+                        leadId: d.lead_id,
+                        decision: "not_fit",
+                        reason: feedbackReason,
+                      });
+                      if (r?.["proposedTopic"]) {
+                        setAvoidTopics(String(r["proposedTopic"]));
+                        setReason("Poor-fit example @" + d.username);
+                      }
+                    }}
+                  >
+                    Poor fit: propose avoidance
                   </Button>
                   <Button
                     variant="outline"
@@ -629,12 +695,19 @@ export function MissionControl({
           <section className="space-y-3 rounded border p-4">
             <h2 className="font-semibold">Record your preferences</h2>
             <p className="text-sm text-muted-foreground">
-              Each matching preferred teaching topic adds one transparent priority point. This only
-              reorders eligible opportunities; it does not predict replies. Hard filters never
-              change.
+              Preferred topics add one priority point; avoided topics subtract one. Feedback only
+              proposes a change until you save a new version. This does not predict replies or
+              change hard filters.
             </p>
             <Field label="Preferred teaching topics (comma-separated)">
               <input className={field} value={topics} onChange={(e) => setTopics(e.target.value)} />
+            </Field>
+            <Field label="Avoided teaching topics (comma-separated)">
+              <input
+                className={field}
+                value={avoidTopics}
+                onChange={(e) => setAvoidTopics(e.target.value)}
+              />
             </Field>
             <Field label="Why these examples fit">
               <input className={field} value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -648,6 +721,10 @@ export function MissionControl({
                     .split(",")
                     .map((t) => t.trim())
                     .filter(Boolean),
+                  avoidTopics: avoidTopics
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean),
                   reason,
                 })
               }
@@ -657,7 +734,8 @@ export function MissionControl({
             {data?.preferences.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
                 <span>
-                  {p.preferences.topics.join(", ")} · {p.reason}
+                  Prefer: {p.preferences.topics.join(", ") || "none"}; avoid:{" "}
+                  {p.preferences.avoidTopics?.join(", ") || "none"} · {p.reason}
                 </span>
                 <Button
                   variant="outline"
@@ -666,6 +744,7 @@ export function MissionControl({
                     void run({
                       action: "preferences",
                       topics: p.preferences.topics,
+                      avoidTopics: p.preferences.avoidTopics ?? [],
                       reason: "Restored version " + p.id,
                     })
                   }
@@ -680,51 +759,17 @@ export function MissionControl({
       {tab === "partnerships" && data && (
         <PartnershipOperations data={data} run={run} busy={busy} admin={Boolean(admin)} />
       )}
-      {tab === "usage" && (
-        <section className="space-y-4 rounded border p-5">
-          <h2 className="text-lg font-semibold">Workspace usage · USD</h2>
-          <p className="text-sm">
-            {data?.developer
-              ? "Developer access: subscription not required."
-              : "Billing not configured; subscription enforcement is not live."}{" "}
-            Provider spend limits still apply.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            App-recorded consumption across all time. Pending reservations include unknown charges;
-            they are not free usage. Provider balance is not an expense ledger.
-          </p>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th>Founder / member</th>
-                <th>Provider</th>
-                <th>Attempts</th>
-                <th>Settled estimate</th>
-                <th>Pending ceiling</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.usage.map((u) => (
-                <tr key={u.actor + u.provider} className="border-t">
-                  <td className="py-3">
-                    {profiles.find((p) => p.id === u.actor)?.display_name ?? u.actor}
-                  </td>
-                  <td>{u.provider}</td>
-                  <td>{u.attempts}</td>
-                  <td>${(Number(u.settled_nanos) / 1e9).toFixed(6)}</td>
-                  <td>${(Number(u.pending_nanos) / 1e9).toFixed(6)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="font-medium">
-            Company total: $
-            {((data?.usage.reduce((n, u) => n + Number(u.settled_nanos), 0) ?? 0) / 1e9).toFixed(6)}{" "}
-            estimated settled · $
-            {((data?.usage.reduce((n, u) => n + Number(u.pending_nanos), 0) ?? 0) / 1e9).toFixed(6)}{" "}
-            pending
-          </p>
-        </section>
+      {tab === "usage" && data && (
+        <UsageLedger
+          groups={data.usage}
+          attempts={data.attempts}
+          names={Object.fromEntries(
+            profiles.map((profile) => [profile.id, profile.display_name ?? profile.id]),
+          )}
+          admin={Boolean(admin)}
+          busy={busy}
+          run={run}
+        />
       )}
       {tab === "setup" && (
         <section className="space-y-5 rounded border p-5">
@@ -741,20 +786,6 @@ export function MissionControl({
             budgets. Live outreach, billing checkout, scheduled scouts and proposal publishing are
             not enabled.
           </p>
-          {data?.providers.map((p) => (
-            <div key={p.provider} className="rounded bg-secondary p-3 text-sm">
-              <strong>{p.provider}</strong> · fingerprint {p.fingerprint} · rights{" "}
-              {p.rights_confirmed ? "attested" : "not confirmed"}
-              <p>Discovered models: {p.models.join(", ") || "not tested"}</p>
-              <Button
-                variant="outline"
-                disabled={busy || !admin}
-                onClick={() => void run({ action: "removeProvider", provider: p.provider })}
-              >
-                Remove key
-              </Button>
-            </div>
-          ))}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Daily external spend ceiling (USD)">
               <input
@@ -801,79 +832,16 @@ export function MissionControl({
           >
             Save limits and research switch
           </Button>
-          <hr />
-          <Field label="Provider">
-            <select
-              className={field}
-              value={provider}
-              onChange={(e) => setProvider(e.target.value as typeof provider)}
-            >
-              <option value="deepseek">DeepSeek</option>
-              <option value="brave">Brave Search</option>
-              <option value="modash">Modash Raw</option>
-            </select>
-          </Field>
-          <Field label="Secret key (encrypted server-side; never saved in this browser)">
-            <input
-              type="password"
-              autoComplete="off"
-              className={field}
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-            />
-          </Field>
-          <label className="flex gap-2 text-sm">
-            <input type="checkbox" checked={rights} onChange={(e) => setRights(e.target.checked)} />
-            I verified this source's storage and intended processing rights.
-          </label>
-          <p className="text-xs text-muted-foreground">
-            DeepSeek configuration requires pricing: version, model, effectiveAt, expiresAt,
-            hitNanosPerMillion, missNanosPerMillion, outputNanosPerMillion and sourceUrl. Use
-            current documented rates; $1 = 1,000,000,000 nano-USD. Brave and Modash require
-            requestCeilingNanos from your plan. Modash additionally requires accessReviewed and
-            linkCoverageReviewed booleans after actual account review. No price is assumed.
-          </p>
-          <Field label="Provider configuration (JSON)">
-            <textarea
-              className={field + " min-h-32 font-mono text-xs"}
-              value={config}
-              onChange={(e) => setConfig(e.target.value)}
-            />
-          </Field>
-          <div className="flex gap-2">
-            <Button
-              disabled={busy || !admin || !key}
-              onClick={async () => {
-                try {
-                  const result = await run({
-                    action: "saveProvider",
-                    provider,
-                    key,
-                    configuration: JSON.parse(config),
-                    rights,
-                  });
-                  if (result) setKey("");
-                } catch {
-                  toast.error("Configuration must be valid JSON");
-                }
-              }}
-            >
-              Save encrypted key
-            </Button>
-            <Button
-              variant="outline"
-              disabled={busy || !admin}
-              onClick={() =>
-                void run(
-                  { action: "testDeepSeek" },
-                  "Available models refreshed; no generation test performed",
-                )
-              }
-            >
-              Discover DeepSeek models
-            </Button>
-          </div>
         </section>
+      )}
+      {tab === "setup" && (
+        <ProviderSetup
+          key={workspace}
+          connections={(data?.providers ?? []) as never}
+          admin={Boolean(admin)}
+          busy={busy}
+          run={run}
+        />
       )}
       {tab === "setup" && <LocalHermes />}
       {tab === "team" && <TeamManagement />}

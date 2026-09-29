@@ -196,7 +196,6 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
       setCommandOpen,
       activeLead,
       setActiveLead,
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
     [
       activeLead,

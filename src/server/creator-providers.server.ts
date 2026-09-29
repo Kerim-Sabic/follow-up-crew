@@ -1,6 +1,12 @@
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
-import { priceSchema, usageCost, type Observation, type MissionSpec } from "../lib/mission-domain";
+import {
+  priceSchema,
+  requestTariffSchema,
+  usageCost,
+  type Observation,
+  type MissionSpec,
+} from "../lib/mission-domain";
 import { withWorkspace, requireAdmin } from "./creator-db.server";
 import { mapModashProfile, addModashContent } from "../lib/modash-mapping";
 
@@ -47,8 +53,9 @@ async function providerJson(
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (!response.ok)
-    throw new Error(
+    throw new ProviderResponseError(
       `${provider}: ${response.status === 401 || response.status === 403 ? "authentication/access denied" : response.status === 429 ? "rate or credit limit" : `request failed (${response.status})`}`,
+      response.status,
     );
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Provider returned no response body");
@@ -66,6 +73,43 @@ async function providerJson(
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
 }
+class ProviderResponseError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+async function recordTariffEstimate(
+  actor: string,
+  w: string,
+  id: string,
+  configuration: Record<string, unknown>,
+  responseStatus: number,
+) {
+  const parsed = requestTariffSchema.safeParse(configuration["tariff"]);
+  const tariff = parsed.success ? parsed.data : null;
+  const current =
+    tariff &&
+    Date.now() >= Date.parse(tariff.effectiveAt) &&
+    Date.now() < Date.parse(tariff.expiresAt);
+  await withWorkspace(actor, w, true, async (sql) => {
+    const [attempt] =
+      await sql`select reserved_nanos,status from public.usage_attempts where workspace=${w} and id=${id} for update`;
+    if (!attempt || attempt["status"] !== "pending")
+      throw new Error("Provider attempt already resolved");
+    if (!current || !tariff) {
+      await sql`update public.usage_attempts set usage=${sql.json({ responseStatus, measurement: "unresolved provider invoice" })} where workspace=${w} and id=${id}`;
+      return;
+    }
+    if (BigInt(tariff.nanosPerRequest) > BigInt(attempt["reserved_nanos"] as string))
+      throw new Error("Provider tariff exceeds reserved ceiling; reconcile billed amount");
+    await sql`insert into public.usage_settlements(attempt_id,workspace,amount_nanos,pricing_snapshot,measurement)
+      values(${id},${w},${tariff.nanosPerRequest}::bigint,${sql.json(tariff)},'tariff-derived estimate') on conflict(attempt_id) do nothing`;
+    await sql`update public.usage_attempts set status='settled',billing_basis='tariff_estimate',settled_nanos=${tariff.nanosPerRequest}::bigint,settled_at=now(),usage=${sql.json({ responseStatus, measurement: "tariff-derived estimate; invoice not reconciled" })} where workspace=${w} and id=${id}`;
+  });
+}
 export async function saveProvider(
   actor: string,
   w: string,
@@ -74,6 +118,7 @@ export async function saveProvider(
   configuration: Record<string, unknown>,
   rights: boolean,
 ) {
+  validateProviderConfiguration(p, configuration, false);
   return withWorkspace(actor, w, true, async (sql, role) => {
     requireAdmin(role);
     const ciphertext = encryptProviderKey(w, p, key),
@@ -83,6 +128,69 @@ export async function saveProvider(
   do update set ciphertext=excluded.ciphertext,fingerprint=excluded.fingerprint,configuration=excluded.configuration,rights_confirmed=excluded.rights_confirmed,models='[]',validated_at=null`;
     await sql`insert into public.audit_events(workspace,actor,action) values(${w},${actor},'provider.key_saved')`;
     return { fingerprint };
+  });
+}
+function validateProviderConfiguration(
+  p: "deepseek" | "brave" | "modash",
+  config: Record<string, unknown>,
+  complete: boolean,
+) {
+  if (p === "deepseek") {
+    const parsed = z.object({ pricing: priceSchema.optional() }).strict().parse(config);
+    if (complete && !parsed.pricing) throw new Error("Current DeepSeek pricing is required");
+    if (
+      parsed.pricing &&
+      Date.parse(parsed.pricing.effectiveAt) >= Date.parse(parsed.pricing.expiresAt)
+    )
+      throw new Error("Pricing expiry must follow its effective date");
+    return;
+  }
+  const parsed = z
+    .object({
+      requestCeilingNanos: z
+        .string()
+        .regex(/^[1-9]\d*$/)
+        .optional(),
+      tariff: requestTariffSchema.optional(),
+      ...(p === "modash"
+        ? {
+            accessReviewed: z.boolean().optional(),
+            linkCoverageReviewed: z.boolean().optional(),
+          }
+        : {}),
+    })
+    .strict()
+    .parse(config);
+  if (complete && !parsed.requestCeilingNanos)
+    throw new Error("A positive provider request ceiling is required");
+  if (
+    parsed.tariff &&
+    (Date.parse(parsed.tariff.effectiveAt) >= Date.parse(parsed.tariff.expiresAt) ||
+      BigInt(parsed.tariff.nanosPerRequest) > BigInt(parsed.requestCeilingNanos ?? "0"))
+  )
+    throw new Error("Tariff dates or ceiling are invalid");
+}
+export async function configureProvider(
+  actor: string,
+  w: string,
+  p: "deepseek" | "brave" | "modash",
+  configuration: Record<string, unknown>,
+  rights: boolean,
+) {
+  validateProviderConfiguration(p, configuration, true);
+  return withWorkspace(actor, w, true, async (sql, role) => {
+    requireAdmin(role);
+    const [existing] =
+      await sql`select models from private.provider_connections where workspace=${w} and provider=${p} for update`;
+    if (!existing) throw new Error("Save the provider key first");
+    if (p === "deepseek") {
+      const selected = priceSchema.parse(configuration["pricing"]).model;
+      if (!(existing["models"] as string[]).includes(selected))
+        throw new Error("Select a model discovered with the current key");
+    }
+    await sql`update private.provider_connections set configuration=${sql.json(configuration as never)},rights_confirmed=${rights} where workspace=${w} and provider=${p}`;
+    await sql`insert into public.audit_events(workspace,actor,action) values(${w},${actor},'provider.capability_reviewed')`;
+    return { saved: true };
   });
 }
 async function connection(actor: string, w: string, p: string) {
@@ -139,6 +247,8 @@ export async function discoverBrave(
   const url = new URL("https://api.search.brave.com/res/v1/web/search");
   url.searchParams.set("q", `site:instagram.com ${spec.query}`);
   url.searchParams.set("count", "20");
+  const response = await providerJson(url.toString(), c.key, "brave");
+  await recordTariffEstimate(actor, w, attempt, c.config, 200);
   const result = z
     .object({
       web: z
@@ -147,11 +257,7 @@ export async function discoverBrave(
         })
         .optional(),
     })
-    .parse(await providerJson(url.toString(), c.key, "brave"));
-  // No automatic settlement: a configured ceiling is not measured provider billing.
-  await withWorkspace(actor, w, true, async (sql) => {
-    await sql`update public.usage_attempts set usage=${sql.json({ responseReceived: true, measurement: "pending provider reconciliation" })} where workspace=${w} and id=${attempt}`;
-  });
+    .parse(response);
   const candidates: Observation[] = [];
   for (const item of result.web?.results ?? []) {
     let u: URL;
@@ -255,7 +361,7 @@ export async function analyzeOpportunity(
     );
   const measured = response.model === price.model ? usageCost(response.usage, price) : null;
   await withWorkspace(actor, w, true, async (sql) => {
-    await sql`update public.usage_attempts set resolved_model=${response.model},usage=${sql.json((response.usage ?? {}) as never)},settled_nanos=${measured?.toString() ?? null}::bigint,status=${measured === null ? "pending" : "settled"},settled_at=${measured === null ? null : new Date()} where workspace=${w} and id=${id} and status='pending'`;
+    await sql`update public.usage_attempts set resolved_model=${response.model},usage=${sql.json((response.usage ?? {}) as never)},settled_nanos=${measured?.toString() ?? null}::bigint,status=${measured === null ? "pending" : "settled"},billing_basis=${measured === null ? "unresolved" : "provider_usage_priced"},settled_at=${measured === null ? null : new Date()} where workspace=${w} and id=${id} and status='pending'`;
     if (measured !== null)
       await sql`insert into public.usage_settlements(attempt_id,workspace,amount_nanos,pricing_snapshot,measurement) values(${id},${w},${measured.toString()}::bigint,${sql.json(price)},'provider token usage; local price estimate') on conflict(attempt_id) do nothing`;
   });
@@ -286,16 +392,28 @@ async function modashCall(
     .string()
     .regex(/^[1-9]\d*$/)
     .parse(c.config["requestCeilingNanos"]);
-  await withWorkspace(actor, w, true, async (sql) => {
-    await sql`select private.reserve_attempt(${w},${mission},${mission + ":modash:" + path + ":" + value},'modash',${path},${ceiling}::bigint,null,'admin-configured-ceiling')`;
-  });
+  const attempt = await withWorkspace(
+    actor,
+    w,
+    true,
+    async (sql) =>
+      (
+        await sql`select private.reserve_attempt(${w},${mission},${mission + ":modash:" + path + ":" + value},'modash',${path},${ceiling}::bigint,null,'admin-configured-ceiling') as id`
+      )[0]!["id"] as string,
+  );
   const url = new URL(`https://api.modash.io/v1/raw/ig/${path}`);
   url.searchParams.set(path === "search" ? "keyword" : "url", value);
   // Provider docs count even 404 as consumed requests. Any unmeasured outcome stays reserved.
-  return {
-    data: await providerJson(url.toString(), c.key, "modash"),
-    coverageReviewed: c.config["linkCoverageReviewed"] === true,
-  };
+  try {
+    const data = await providerJson(url.toString(), c.key, "modash");
+    await recordTariffEstimate(actor, w, attempt, c.config, 200);
+    return { data, coverageReviewed: c.config["linkCoverageReviewed"] === true };
+  } catch (error) {
+    // Modash documents Raw API 404 responses as billable requests.
+    if (error instanceof ProviderResponseError && error.status === 404)
+      await recordTariffEstimate(actor, w, attempt, c.config, 404);
+    throw error;
+  }
 }
 export async function discoverModash(
   actor: string,

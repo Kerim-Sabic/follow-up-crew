@@ -14,16 +14,35 @@ import {
 } from "../lib/mission-domain";
 import {
   saveProvider,
+  configureProvider,
   testDeepSeek,
   discoverBrave,
   discoverModash,
   enrichModash,
   analyzeOpportunity,
 } from "./creator-providers.server";
+import {
+  leadFilterSchema,
+  createBulkJob,
+  listBulkJobs,
+  cancelBulkJob,
+  prepareDownload,
+} from "./bulk-jobs.server";
 
 const uuid = z.string().uuid();
 export const commandSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("overview"), workspace: uuid }),
+  z.object({ action: z.literal("bulkJobs"), workspace: uuid }),
+  z.object({
+    action: z.literal("createBulkJob"),
+    workspace: uuid,
+    requestKey: uuid,
+    filters: leadFilterSchema,
+    kind: z.enum(["stage", "export"]),
+    targetStage: z.string().max(80).optional(),
+  }),
+  z.object({ action: z.literal("cancelBulkJob"), workspace: uuid, id: uuid }),
+  z.object({ action: z.literal("prepareBulkDownload"), workspace: uuid, id: uuid }),
   z.object({
     action: z.literal("createMission"),
     workspace: uuid,
@@ -66,6 +85,7 @@ export const commandSchema = z.discriminatedUnion("action", [
     action: z.literal("preferences"),
     workspace: uuid,
     topics: z.array(z.string().max(100)).max(10),
+    avoidTopics: z.array(z.string().max(100)).max(10).default([]),
     reason: z.string().min(1).max(500),
   }),
   z.object({
@@ -120,6 +140,20 @@ export const commandSchema = z.discriminatedUnion("action", [
     rights: z.boolean(),
   }),
   z.object({ action: z.literal("testDeepSeek"), workspace: uuid }),
+  z.object({
+    action: z.literal("reconcileUsage"),
+    workspace: uuid,
+    attemptId: uuid,
+    actualNanos: z.number().int().nonnegative().max(1_000_000_000_000),
+    invoiceReference: z.string().trim().min(5).max(200),
+  }),
+  z.object({
+    action: z.literal("configureProvider"),
+    workspace: uuid,
+    provider: z.enum(["deepseek", "brave", "modash"]),
+    configuration: z.record(z.unknown()),
+    rights: z.boolean(),
+  }),
   z.object({
     action: z.literal("removeProvider"),
     workspace: uuid,
@@ -188,6 +222,13 @@ export async function executeCommand(actor: string, command: Command): Promise<u
   if (c.action === "saveProvider")
     return saveProvider(actor, w, c.provider, c.key, c.configuration, c.rights);
   if (c.action === "testDeepSeek") return testDeepSeek(actor, w);
+  if (c.action === "configureProvider")
+    return configureProvider(actor, w, c.provider, c.configuration, c.rights);
+  if (c.action === "bulkJobs") return listBulkJobs(actor, w);
+  if (c.action === "createBulkJob")
+    return createBulkJob(actor, w, c.requestKey, c.filters, c.kind, c.targetStage);
+  if (c.action === "cancelBulkJob") return cancelBulkJob(actor, w, c.id);
+  if (c.action === "prepareBulkDownload") return prepareDownload(actor, w, c.id);
   if (c.action === "recheck") {
     await withWorkspace(actor, w, true, async (sql) => {
       const [l] =
@@ -204,14 +245,28 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           await sql`select id,spec,state,checkpoint,problem,created_at,plan_hash from public.missions where workspace=${w} order by created_at desc limit 30`;
         const drafts =
           await sql`select d.*,l.username,e.observation,e.qualification,e.reasons,m.spec,
-     case when e.qualification='passed' then (select count(*) from jsonb_array_elements_text(coalesce((select preferences->'topics' from public.preference_versions where workspace=${w} order by created_at desc limit 1),'[]')) topic where strpos(lower(coalesce(e.observation->>'teachingTopic','')),lower(topic))>0) else 0 end as preference_matches
+     case when e.qualification='passed' then
+       (select count(*) from jsonb_array_elements_text(coalesce((select preferences->'topics' from public.preference_versions where workspace=${w} order by created_at desc limit 1),'[]')) topic where strpos(lower(coalesce(e.observation->>'teachingTopic','')),lower(topic))>0)
+       - (select count(*) from jsonb_array_elements_text(coalesce((select preferences->'avoidTopics' from public.preference_versions where workspace=${w} order by created_at desc limit 1),'[]')) topic where strpos(lower(coalesce(e.observation->>'teachingTopic','')),lower(topic))>0)
+     else 0 end as preference_matches
      from public.partnership_drafts d join public.leads l on l.id=d.lead_id and l.workspace=d.workspace join public.creator_evidence e on e.id=d.evidence_id and e.workspace=d.workspace join public.missions m on m.id=e.mission_id and m.workspace=d.workspace where d.workspace=${w} order by case d.state when 'invalidated' then 0 when 'review' then 1 else 2 end,preference_matches desc,d.created_at desc limit 10`;
         const evidence =
           await sql`select e.*,l.username from public.creator_evidence e join public.leads l on l.id=e.lead_id and l.workspace=e.workspace where e.workspace=${w} order by e.retrieved_at desc limit 20`;
         const providers =
-          await sql`select provider,fingerprint,models,validated_at,rights_confirmed from private.provider_connections where workspace=${w}`;
-        const usage =
-          await sql`select actor,provider,currency,count(*)::int as attempts,sum(coalesce(settled_nanos,0))::text as settled_nanos,sum(case when status='pending' then reserved_nanos else 0 end)::text as pending_nanos from public.usage_attempts where workspace=${w} group by actor,provider,currency`;
+          await sql`select provider,fingerprint,models,validated_at,rights_confirmed,configuration from private.provider_connections where workspace=${w}`;
+        const usage = await sql`select a.actor,a.provider,a.currency,count(*)::int as attempts,
+          sum(case when r.attempt_id is null then coalesce(a.settled_nanos,0) else 0 end)::text as settled_nanos,
+          sum(case when a.status='pending' then a.reserved_nanos else 0 end)::text as pending_nanos,
+          sum(coalesce(r.amount_nanos,0))::text as reconciled_nanos
+          from public.usage_attempts a left join public.provider_reconciliations r on r.attempt_id=a.id
+          where a.workspace=${w} group by a.actor,a.provider,a.currency`;
+        const attempts =
+          role === "owner" || role === "admin"
+            ? await sql`select a.id,a.actor,a.provider,a.task,a.status,a.billing_basis,a.reserved_nanos::text,
+            a.settled_nanos::text,r.amount_nanos::text as reconciled_nanos,a.created_at
+            from public.usage_attempts a left join public.provider_reconciliations r on r.attempt_id=a.id
+            where a.workspace=${w} order by a.created_at desc limit 30`
+            : [];
         const limits =
           await sql`select s.*,w.research_enabled from public.spend_limits s join public.workspaces w on w.id=s.workspace where workspace=${w}`;
         const preferences =
@@ -224,6 +279,15 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           await sql`select * from public.partnership_projects where workspace=${w} order by created_at desc limit 20`;
         const replies =
           await sql`select id,lead_id,subject,sent_at from public.email_messages where workspace=${w} and user_id=${actor} and direction='in' and not is_read order by sent_at desc limit 10`;
+        const followups = await sql`select id,username,last_touched_at,owner_id from public.leads
+          where workspace=${w} and stage='contacted' and last_touched_at<now()-interval '2 days'
+          and (owner_id=${actor} or owner_id is null)
+          order by last_touched_at asc,id limit 10`;
+        const approvedDrafts =
+          await sql`select d.id,l.username,d.approved_at from public.partnership_drafts d
+          join public.leads l on l.workspace=d.workspace and l.id=d.lead_id
+          where d.workspace=${w} and d.state='approved' and (l.owner_id=${actor} or l.owner_id is null)
+          order by d.approved_at asc limit 10`;
         const [entitlement] = await sql`select private.is_developer() as developer`;
         const [founderAccess] =
           await sql`select protected_founder from public.workspace_members where workspace=${w} and user_id=${actor}`;
@@ -236,12 +300,15 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           evidence,
           providers,
           usage,
+          attempts,
           limits,
           preferences,
           feedback,
           proposals,
           projects,
           replies,
+          followups,
+          approvedDrafts,
           founders,
           developer: entitlement?.["developer"] === true,
           role,
@@ -368,7 +435,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         return { suppressed: true };
       }
       case "preferences": {
-        await sql`insert into public.preference_versions(workspace,actor,preferences,reason) values(${w},${actor},${sql.json({ topics: c.topics })},${c.reason})`;
+        await sql`insert into public.preference_versions(workspace,actor,preferences,reason) values(${w},${actor},${sql.json({ topics: c.topics, avoidTopics: c.avoidTopics })},${c.reason})`;
         return {
           saved: true,
           note: "Transparent topic matching reranks eligible opportunities only. Hard filters unchanged; this is not a response predictor.",
@@ -382,7 +449,9 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         await sql`insert into public.creator_feedback(workspace,lead_id,actor,decision,topic,reason) values(${w},${c.leadId},${actor},${c.decision},${o.teachingTopic ?? "Unresolved topic"},${c.reason})`;
         return {
           saved: true,
-          proposedTopic: c.decision === "strong_fit" ? o.teachingTopic : null,
+          proposedTopic: c.decision !== "unsure" ? o.teachingTopic : null,
+          proposedDirection:
+            c.decision === "strong_fit" ? "prefer" : c.decision === "not_fit" ? "avoid" : null,
           explanation:
             "Review and adopt the proposed topic preference explicitly. No hard filter changed.",
         };
@@ -434,6 +503,21 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         await sql`update public.workspaces set research_enabled=${c.enabled} where id=${w}`;
         await sql`insert into public.audit_events(workspace,actor,action) values(${w},${actor},'budgets.updated')`;
         return { saved: true };
+      }
+      case "reconcileUsage": {
+        requireAdmin(role);
+        await sql`select id from public.workspaces where id=${w} for update`;
+        const [attempt] =
+          await sql`select id from public.usage_attempts where workspace=${w} and id=${c.attemptId} for update`;
+        if (!attempt) throw new Error("Usage attempt unavailable");
+        const [recorded] =
+          await sql`insert into public.provider_reconciliations(attempt_id,workspace,amount_nanos,invoice_reference,recorded_by)
+          values(${c.attemptId},${w},${c.actualNanos}::bigint,${c.invoiceReference},${actor})
+          on conflict(attempt_id) do nothing returning attempt_id`;
+        if (!recorded) throw new Error("Invoice already reconciled for this attempt");
+        await sql`update public.usage_attempts set status='settled',billing_basis='invoice_reconciled',settled_at=now() where workspace=${w} and id=${c.attemptId}`;
+        await sql`insert into public.audit_events(workspace,actor,action,resource_id) values(${w},${actor},'provider.invoice_reconciled',${c.attemptId})`;
+        return { reconciled: true };
       }
       case "removeProvider":
         requireAdmin(role);

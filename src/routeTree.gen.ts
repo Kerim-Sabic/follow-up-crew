@@ -24,6 +24,7 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRepliesRouteImport } from './routes/_authenticated/replies'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
+import { Route as ApiBulkExportIdRouteImport } from './routes/api/bulk-export.$id'
 import { Route as OauthGoogleMailReturnRouteImport } from './routes/oauth/google-mail/return'
 
 const IndexRoute = IndexRouteImport.update({
@@ -100,6 +101,11 @@ const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiBulkExportIdRoute = ApiBulkExportIdRouteImport.update({
+  id: '/api/bulk-export/$id',
+  path: '/api/bulk-export/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OauthGoogleMailReturnRoute = OauthGoogleMailReturnRouteImport.update({
   id: '/oauth/google-mail/return',
   path: '/oauth/google-mail/return',
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/replies': typeof AuthenticatedRepliesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
+  '/api/bulk-export/$id': typeof ApiBulkExportIdRoute
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRoutesByTo {
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/replies': typeof AuthenticatedRepliesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
+  '/api/bulk-export/$id': typeof ApiBulkExportIdRoute
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRoutesById {
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/_authenticated/replies': typeof AuthenticatedRepliesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
+  '/api/bulk-export/$id': typeof ApiBulkExportIdRoute
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRouteTypes {
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/replies'
     | '/settings'
     | '/templates'
+    | '/api/bulk-export/$id'
     | '/oauth/google-mail/return'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/replies'
     | '/settings'
     | '/templates'
+    | '/api/bulk-export/$id'
     | '/oauth/google-mail/return'
   id:
     | '__root__'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/_authenticated/replies'
     | '/_authenticated/settings'
     | '/_authenticated/templates'
+    | '/api/bulk-export/$id'
     | '/oauth/google-mail/return'
   fileRoutesById: FileRoutesById
 }
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ProposalRoute: typeof ProposalRoute
+  ApiBulkExportIdRoute: typeof ApiBulkExportIdRoute
   OauthGoogleMailReturnRoute: typeof OauthGoogleMailReturnRoute
 }
 
@@ -329,6 +342,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTemplatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/bulk-export/$id': {
+      id: '/api/bulk-export/$id'
+      path: '/api/bulk-export/$id'
+      fullPath: '/api/bulk-export/$id'
+      preLoaderRoute: typeof ApiBulkExportIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oauth/google-mail/return': {
       id: '/oauth/google-mail/return'
       path: '/oauth/google-mail/return'
@@ -375,6 +395,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ProposalRoute: ProposalRoute,
+  ApiBulkExportIdRoute: ApiBulkExportIdRoute,
   OauthGoogleMailReturnRoute: OauthGoogleMailReturnRoute,
 }
 export const routeTree = rootRouteImport

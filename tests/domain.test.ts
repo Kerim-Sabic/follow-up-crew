@@ -8,6 +8,7 @@ import {
   checkDraft,
   usageCost,
   parseCsv,
+  compileBrief,
 } from "../src/lib/mission-domain";
 const now = Date.parse("2026-09-29T12:00:00Z");
 import { spec, observed } from "./domain-fixture";
@@ -37,6 +38,19 @@ test("hard filters never accept missing, rounded, partial, stale, contradictory 
     { adultStatus: "minor" as const },
   ])
     assert.equal(qualify(spec, { ...observed, ...patch }, now).status, "failed");
+});
+test("brief suggestions are explicit and never relax an unrecognized hard filter", () => {
+  const result = compileBrief(
+    "Find English-speaking educators with 10,000–500,000 followers and no bio links; budget $12.50",
+  );
+  assert.deepEqual(result.suggestions, {
+    minFollowers: 10000,
+    maxFollowers: 500000,
+    language: "English",
+    requireNoLink: true,
+    budgetNanos: 12500000000,
+  });
+  assert.deepEqual(compileBrief("Find cooking educators").suggestions, {});
 });
 test("extractive claim checker blocks invented videos, income and prompt injection", () => {
   const draft = composeDraft(observed);

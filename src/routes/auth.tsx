@@ -9,7 +9,7 @@ type AuthSearch = { mode?: "signin" | "signup" };
 export const Route = createFileRoute("/auth")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>): AuthSearch => ({
-    mode: search['mode'] === "signup" ? "signup" : "signin",
+    mode: search["mode"] === "signup" ? "signup" : "signin",
   }),
   head: () => ({
     meta: [
@@ -88,8 +88,8 @@ function AuthPage() {
 
         {sent ? (
           <div className="mt-8 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-panel">
-            We sent a confirmation link to <span className="text-foreground">{email}</span>. Click it,
-            then come back and sign in.
+            We sent a confirmation link to <span className="text-foreground">{email}</span>. Click
+            it, then come back and sign in.
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">

@@ -4,7 +4,14 @@ import { toast } from "sonner";
 import { STATUSES, createLead, type LeadStatus } from "@/lib/crm";
 import { useWorkspace } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -23,7 +30,10 @@ export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: ()
         workspace,
       ),
     onSuccess: (lead) => {
-      queryClient.invalidateQueries({ predicate: (query) => ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])) });
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])),
+      });
       toast.success(`${lead.username} added`);
       onClose();
     },
@@ -34,9 +44,17 @@ export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: ()
     "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/70 focus:ring-2 focus:ring-ring/40";
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-        <DialogHeader><DialogTitle>Add lead</DialogTitle><DialogDescription>Add a prospect with only the details you have now.</DialogDescription></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Add lead</DialogTitle>
+          <DialogDescription>Add a prospect with only the details you have now.</DialogDescription>
+        </DialogHeader>
 
         <form
           className="mt-4 space-y-3"
@@ -111,12 +129,11 @@ export function AddLeadDialog({ userId, onClose }: { userId: string; onClose: ()
             />
           </div>
 
-          <DialogFooter><Button
-            type="submit"
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? "Adding…" : "Add lead"}
-          </Button></DialogFooter>
+          <DialogFooter>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? "Adding…" : "Add lead"}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

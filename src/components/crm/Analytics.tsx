@@ -170,7 +170,10 @@ export function Analytics({
                   </p>
                   <div className="mt-3 flex h-28 items-end gap-1.5">
                     {stats.days.map((day) => (
-                      <div key={day.label} className="group flex flex-1 flex-col items-center gap-1">
+                      <div
+                        key={day.label}
+                        className="group flex flex-1 flex-col items-center gap-1"
+                      >
                         <span className="text-[10px] tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                           {day.count}
                         </span>

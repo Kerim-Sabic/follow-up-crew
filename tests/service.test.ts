@@ -10,6 +10,7 @@ import {
 import { creatorDb, withWorkspace } from "../src/server/creator-db.server";
 import { spec, observed } from "./domain-fixture";
 import type { Observation } from "../src/lib/mission-domain";
+import { discoverBrave } from "../src/server/creator-providers.server";
 
 test("complete imported mission through production services, durable worker, approval, changed evidence, budget attempts and tenant denial", async (t) => {
   const db = await database(true);
@@ -258,6 +259,74 @@ test("complete imported mission through production services, durable worker, app
         assert.equal(aiUsage?.actor, actor);
         await runWorkerUnit();
         assert.equal(calls, 1, "completed worker cannot rebill generation");
+      },
+    );
+    await t.test(
+      "Brave tariff estimate is labelled and duplicate paid retrieval is blocked",
+      async () => {
+        process.env["CREATOR_PROVIDER_KEY_SECRET"] = Buffer.alloc(32, 17).toString("base64");
+        await executeCommand(actor, {
+          action: "limits",
+          workspace: w,
+          daily: 3_000_000_000,
+          monthly: 5_000_000_000,
+          enabled: true,
+        });
+        const tariff = {
+          nanosPerRequest: "200000000",
+          sourceUrl: "https://example.test/fixture-tariff",
+          effectiveAt: new Date(Date.now() - 86_400_000).toISOString(),
+          expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        };
+        await executeCommand(actor, {
+          action: "saveProvider",
+          workspace: w,
+          provider: "brave",
+          key: "FIXTURE_BRAVE_NOT_LIVE",
+          configuration: { requestCeilingNanos: "700000000", tariff },
+          rights: true,
+        });
+        const braveMission = (await executeCommand(actor, {
+          action: "createMission",
+          workspace: w,
+          spec: { ...spec, source: "brave", budgetNanos: 1_000_000_000 },
+          csv: "",
+          useAi: false,
+        })) as { id: string; hash: string };
+        await executeCommand(actor, {
+          action: "approveMission",
+          workspace: w,
+          id: braveMission.id,
+          hash: braveMission.hash,
+        });
+        let calls = 0;
+        globalThis.fetch = async (input, init) => {
+          assert.match(String(input), /^https:\/\/api\.search\.brave\.com\/res\/v1\/web\/search/);
+          assert.equal(
+            new Headers(init?.headers).get("X-Subscription-Token"),
+            "FIXTURE_BRAVE_NOT_LIVE",
+          );
+          calls++;
+          return new Response(JSON.stringify({ web: { results: [] } }));
+        };
+        assert.deepEqual(
+          await discoverBrave(actor, w, braveMission.id, { ...spec, source: "brave" }),
+          [],
+        );
+        await assert.rejects(
+          discoverBrave(actor, w, braveMission.id, { ...spec, source: "brave" }),
+        );
+        assert.equal(calls, 1);
+        const [usage] = await withWorkspace(
+          actor,
+          w,
+          false,
+          async (sql) => sql`select status,billing_basis,settled_nanos
+        from public.usage_attempts where workspace=${w} and mission_id=${braveMission.id}`,
+        );
+        assert.equal(usage?.["status"], "settled");
+        assert.equal(usage?.["billing_basis"], "tariff_estimate");
+        assert.equal(String(usage?.["settled_nanos"]), "200000000");
       },
     );
   } finally {

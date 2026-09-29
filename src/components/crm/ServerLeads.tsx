@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { useWorkspace } from "@/lib/workspace";
 import { useAuth } from "@/lib/auth";
@@ -8,12 +9,25 @@ import { updateLeadStatus } from "@/lib/crm";
 import { exportFullLeads } from "@/lib/export";
 import { LeadTable } from "@/components/crm/LeadTable";
 import { Button } from "@/components/ui/button";
+import { creatorCommand } from "@/lib/creator.functions";
+
+type BulkJob = {
+  id: string;
+  kind: "stage" | "export";
+  target_stage: string | null;
+  state: string;
+  total: number;
+  done: number;
+  skipped: number;
+  problem: string | null;
+};
 
 export function ServerLeads() {
   const { workspace, workspaceLabel, stages, ownerName, setActiveLead, setAddLeadOpen } =
     useWorkspace();
   const { user } = useAuth();
   const cache = useQueryClient();
+  const invoke = useServerFn(creatorCommand);
   const [search, setSearch] = useState(""),
     [q, setQ] = useState(""),
     [stage, setStage] = useState(""),
@@ -21,6 +35,7 @@ export function ServerLeads() {
     [email, setEmail] = useState("");
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [selected, setSelected] = useState(new Set<string>());
+  const [bulkStage, setBulkStage] = useState("");
   const cursor = cursors.at(-1) ?? null;
   const query = useQuery({
     queryKey: ["lead-page", user?.id, workspace, q, stage, owner, email, cursor],
@@ -30,6 +45,70 @@ export function ServerLeads() {
     queryKey: ["lead-counts", user?.id, workspace],
     queryFn: () => rpc<{ stage: string; total: number }[]>("lead_counts", { w: workspace }),
   });
+  const jobs = useQuery({
+    queryKey: ["bulk-jobs", user?.id, workspace],
+    queryFn: async () =>
+      JSON.parse(
+        await invoke({ data: { command: JSON.stringify({ action: "bulkJobs", workspace }) } }),
+      ) as BulkJob[],
+    refetchInterval: (query) =>
+      query.state.data?.some((job) => ["queued", "running"].includes(job.state)) ? 2000 : false,
+  });
+  const startBulk = useMutation({
+    mutationFn: async (input: { kind: "stage" | "export"; targetStage?: string }) =>
+      JSON.parse(
+        await invoke({
+          data: {
+            command: JSON.stringify({
+              action: "createBulkJob",
+              workspace,
+              requestKey: crypto.randomUUID(),
+              filters: { query: q, stage, owner, email },
+              ...input,
+            }),
+          },
+        }),
+      ) as { id: string; total: number },
+    onSuccess: (result) => {
+      toast.success(`Queued ${result.total.toLocaleString()} matching leads`);
+      void cache.invalidateQueries({ queryKey: ["bulk-jobs", user?.id, workspace] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  async function download(jobId: string) {
+    try {
+      const result = JSON.parse(
+        await invoke({
+          data: {
+            command: JSON.stringify({ action: "prepareBulkDownload", workspace, id: jobId }),
+          },
+        }),
+      ) as { token: string };
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = `/api/bulk-export/${jobId}`;
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "token";
+      input.value = result.token;
+      form.append(input);
+      document.body.append(form);
+      form.submit();
+      window.setTimeout(() => form.remove(), 1000);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }
+  async function cancel(jobId: string) {
+    try {
+      await invoke({
+        data: { command: JSON.stringify({ action: "cancelBulkJob", workspace, id: jobId }) },
+      });
+      void cache.invalidateQueries({ queryKey: ["bulk-jobs", user?.id, workspace] });
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }
   const rows = query.data?.slice(0, 100) ?? [];
   const hasNext = (query.data?.length ?? 0) > 100;
   const update = useMutation({
@@ -123,6 +202,67 @@ export function ServerLeads() {
           <option value="no">No email</option>
         </select>
       </form>
+      <section className="space-y-2 rounded border p-3" aria-label="All matching lead actions">
+        <p className="text-sm font-medium">All matching leads</p>
+        <p className="text-xs text-muted-foreground">
+          These actions capture every lead matching the current search and filters when queued,
+          across all pages. Stage changes skip leads a teammate changes before processing. Exports
+          capture each row when the worker reaches it.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={startBulk.isPending}
+            onClick={() => startBulk.mutate({ kind: "export" })}
+          >
+            Export all matching
+          </Button>
+          <select
+            className={field}
+            aria-label="New stage for all matching leads"
+            value={bulkStage}
+            onChange={(e) => setBulkStage(e.target.value)}
+          >
+            <option value="">Choose a stage</option>
+            {stages.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            disabled={!bulkStage || startBulk.isPending}
+            onClick={() => startBulk.mutate({ kind: "stage", targetStage: bulkStage })}
+          >
+            Move all matching
+          </Button>
+        </div>
+        {jobs.error && (
+          <p role="alert" className="text-sm">
+            {jobs.error.message}
+          </p>
+        )}
+        {jobs.data?.map((job) => (
+          <div key={job.id} className="flex flex-wrap items-center gap-2 text-xs">
+            <span>
+              {job.kind === "export" ? "Export" : `Move to ${job.target_stage}`} · {job.state} ·{" "}
+              {job.done}/{job.total} processed{job.skipped ? ` · ${job.skipped} skipped` : ""}
+            </span>
+            {job.problem && <span role="alert">{job.problem}</span>}
+            {job.kind === "export" && job.state === "completed" && (
+              <Button size="sm" variant="outline" onClick={() => void download(job.id)}>
+                Download CSV
+              </Button>
+            )}
+            {["queued", "running"].includes(job.state) && (
+              <Button size="sm" variant="ghost" onClick={() => void cancel(job.id)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        ))}
+      </section>
       {selected.size > 0 && (
         <div className="flex items-center gap-3 text-sm">
           <span>{selected.size} selected on this page</span>
@@ -187,7 +327,8 @@ export function ServerLeads() {
         </Button>
       </footer>
       <p className="text-xs text-muted-foreground">
-        Selection and export apply to this page. Durable all-matching export is not implemented.
+        Row selection applies to this page. Use the all-matching actions above for the full filtered
+        dataset.
       </p>
     </div>
   );

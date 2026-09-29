@@ -24,6 +24,56 @@ export const missionSchema = z
   .strict()
   .refine((x) => x.minFollowers <= x.maxFollowers, "Follower interval is reversed");
 export type MissionSpec = z.infer<typeof missionSchema>;
+export function compileBrief(brief: string): {
+  suggestions: Partial<MissionSpec>;
+  explanations: string[];
+} {
+  const suggestions: Partial<MissionSpec> = {};
+  const explanations: string[] = [];
+  const normalized = brief.replaceAll("\u00a0", " ");
+  const range = normalized.match(
+    /(?:between\s+)?([\d,]+)\s*(?:-|–|—|to|and)\s*([\d,]+)\s*(?:followers|follower)/i,
+  );
+  if (range) {
+    const min = Number(range[1]!.replaceAll(",", ""));
+    const max = Number(range[2]!.replaceAll(",", ""));
+    if (
+      Number.isSafeInteger(min) &&
+      Number.isSafeInteger(max) &&
+      min >= 0 &&
+      max >= min &&
+      max <= 1_000_000_000
+    ) {
+      suggestions.minFollowers = min;
+      suggestions.maxFollowers = max;
+      explanations.push(`Follower range: ${min.toLocaleString()}–${max.toLocaleString()}`);
+    }
+  }
+  const language = normalized.match(/\b(English|Spanish|French|German|Arabic|Bosnian)-speaking\b/i);
+  if (language) {
+    suggestions.language = language[1]![0]!.toUpperCase() + language[1]!.slice(1).toLowerCase();
+    explanations.push(`Content language: ${suggestions.language}`);
+  }
+  if (/\b(?:no|without|absence of)\s+(?:bio\s*)?links?\b/i.test(normalized)) {
+    suggestions.requireNoLink = true;
+    explanations.push("Require verified absence of all bio links");
+  }
+  const budget = normalized.match(
+    /\b(?:budget|spend|maximum expense)\s*(?:of|is|:)?\s*\$\s*(\d+(?:\.\d{1,2})?)\b/i,
+  );
+  if (budget) {
+    const nanos =
+      BigInt(budget[1]!.split(".")[0]!) * 1_000_000_000n +
+      BigInt((budget[1]!.split(".")[1] ?? "").padEnd(2, "0")) * 10_000_000n;
+    if (nanos <= 1_000_000_000_000n) {
+      suggestions.budgetNanos = Number(nanos);
+      explanations.push(`Maximum external spend: $${budget[1]}`);
+    }
+  }
+  if (!explanations.length)
+    explanations.push("No hard fields recognized. Set the fields below before approval.");
+  return { suggestions, explanations };
+}
 const httpsUrl = z
   .string()
   .url()
@@ -136,6 +186,12 @@ export const priceSchema = z.object({
   missNanosPerMillion: z.string().regex(/^\d+$/),
   outputNanosPerMillion: z.string().regex(/^\d+$/),
   sourceUrl: httpsUrl,
+});
+export const requestTariffSchema = z.object({
+  nanosPerRequest: z.string().regex(/^\d+$/),
+  sourceUrl: httpsUrl,
+  effectiveAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
 });
 export type Price = z.infer<typeof priceSchema>;
 export function usageCost(usage: unknown, price: Price): bigint | null {

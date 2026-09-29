@@ -1,4 +1,5 @@
 import { runWorkerUnit } from "./creator-service.server";
+import { runBulkUnit } from "./bulk-jobs.server";
 import { creatorDb } from "./creator-db.server";
 let stop = false;
 process.on("SIGINT", () => {
@@ -9,7 +10,7 @@ process.on("SIGTERM", () => {
 });
 while (!stop) {
   try {
-    const worked = await runWorkerUnit();
+    const worked = (await runBulkUnit()) || (await runWorkerUnit());
     if (!worked) await new Promise((resolve) => setTimeout(resolve, 1500));
   } catch {
     console.error(

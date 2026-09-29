@@ -26,7 +26,11 @@ export function rememberMailbox(id: string) {
 
 function waitForOAuth(popup: Window) {
   return new Promise<string | null>((resolve, reject) => {
-    let poll: number | undefined;
+    const poll = window.setInterval(() => {
+      if (!popup.closed) return;
+      cleanup();
+      reject(new Error("The Google window closed before the mailbox was connected."));
+    }, 500);
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
       if (poll !== undefined) window.clearInterval(poll);
@@ -49,11 +53,6 @@ function waitForOAuth(popup: Window) {
       reject(new Error("Google did not finish connecting the mailbox."));
     };
     window.addEventListener("message", onMessage);
-    poll = window.setInterval(() => {
-      if (!popup.closed) return;
-      cleanup();
-      reject(new Error("The Google window closed before the mailbox was connected."));
-    }, 500);
   });
 }
 

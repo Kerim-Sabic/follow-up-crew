@@ -3,7 +3,7 @@ import { leadStage } from "./crm";
 
 function csvCell(value: string | number | null | undefined) {
   const raw = value === null || value === undefined ? "" : String(value);
-  const text = /^[\s]*[=+@\-\t\r]/.test(raw) ? "\'" + raw : raw;
+  const text = /^[\s]*[=+@\-\t\r]/.test(raw) ? "'" + raw : raw;
   return `"${text.replace(/"/g, '""')}"`;
 }
 

@@ -179,7 +179,11 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ raw }),
         });
-        await settleMail(context.userId, data.workspace, reservation, String(result.id));
+        if (!result.id)
+          throw new Error(
+            "Gmail delivery outcome is ambiguous; reconcile the pending outbox before retrying",
+          );
+        await settleMail(context.userId, data.workspace, reservation, result.id);
         const { error: persistError } = await supabaseAdmin.from("email_messages").insert({
           workspace: data.workspace,
           lead_id: message.leadId,
@@ -187,7 +191,7 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
           user_id: context.userId,
           direction: "out",
           gmail_message_id: result.id,
-          gmail_thread_id: result.threadId,
+          gmail_thread_id: result.threadId ?? null,
           from_email: account.email,
           to_email: message.to,
           subject: message.subject,
@@ -251,7 +255,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
           .eq("id", meta.leadId)
           .maybeSingle();
         if (!authorizedLead) continue;
-        let thread: any;
+        let thread: import("@/server/mailAccounts.server").GmailResponse;
         try {
           thread = await gmail(account, `/gmail/v1/users/me/threads/${threadId}?format=full`);
         } catch (error) {
@@ -259,6 +263,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
           continue;
         }
         for (const message of thread?.messages ?? []) {
+          if (!message.id) continue;
           if (knownIds.has(message.id)) continue;
           const from = headerOf(message, "From");
           const isFromMe =
@@ -368,7 +373,11 @@ export const replyToThread = createServerFn({ method: "POST" })
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ raw, threadId: incoming.gmail_thread_id }),
     });
-    await settleMail(context.userId, incoming.workspace, reservation, String(result.id));
+    if (!result.id)
+      throw new Error(
+        "Gmail delivery outcome is ambiguous; reconcile the pending outbox before retrying",
+      );
+    await settleMail(context.userId, incoming.workspace, reservation, result.id);
 
     await supabaseAdmin.from("email_messages").insert({
       workspace: incoming.workspace,
@@ -377,7 +386,7 @@ export const replyToThread = createServerFn({ method: "POST" })
       user_id: context.userId,
       direction: "out",
       gmail_message_id: result.id,
-      gmail_thread_id: result.threadId,
+      gmail_thread_id: result.threadId ?? null,
       from_email: account.email,
       to_email: to,
       subject,

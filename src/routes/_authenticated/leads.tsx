@@ -472,7 +472,8 @@ function LeadsPage() {
             onToggleSelect={(id) =>
               setSelected((current) => {
                 const next = new Set(current);
-                next.has(id) ? next.delete(id) : next.add(id);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
                 return next;
               })
             }

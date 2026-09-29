@@ -2,14 +2,29 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2, Lock, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/lib/workspace";
-import { STAGE_COLORS, colorMeta, createStage, deleteStage, renameStage, reorderStages, type Stage } from "@/lib/crm";
+import {
+  STAGE_COLORS,
+  colorMeta,
+  createStage,
+  deleteStage,
+  renameStage,
+  reorderStages,
+  type Stage,
+} from "@/lib/crm";
 
 export function ManageStagesDialog() {
-  const { manageStagesOpen, setManageStagesOpen, rawStages, workspace, workspaceLabel, leads } = useWorkspace();
+  const { manageStagesOpen, setManageStagesOpen, rawStages, workspace, workspaceLabel, leads } =
+    useWorkspace();
   const queryClient = useQueryClient();
   const [label, setLabel] = useState("");
   const [color, setColor] = useState("amber");
@@ -32,11 +47,15 @@ export function ManageStagesDialog() {
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["lead-stages"] });
-    queryClient.invalidateQueries({ predicate: (query) => ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])) });
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        ["leads", "lead-page", "lead-counts"].includes(String(query.queryKey[0])),
+    });
   };
 
   const add = useMutation({
-    mutationFn: () => createStage(workspace, { label: label.trim(), color, position: order.length }),
+    mutationFn: () =>
+      createStage(workspace, { label: label.trim(), color, position: order.length }),
     onSuccess: () => {
       setLabel("");
       refresh();
@@ -55,7 +74,8 @@ export function ManageStagesDialog() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: { label?: string; color?: string } }) => renameStage(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: { label?: string; color?: string } }) =>
+      renameStage(id, patch),
     onSuccess: refresh,
     onError: () => toast.error("Couldn't save that change."),
   });
@@ -102,8 +122,8 @@ export function ManageStagesDialog() {
         <DialogHeader>
           <DialogTitle>Stages in {workspaceLabel}</DialogTitle>
           <DialogDescription>
-            Drag a stage to reorder it, click its name to rename, and add your own next to the built-in ones. Everyone on
-            this list sees the change instantly.
+            Drag a stage to reorder it, click its name to rename, and add your own next to the
+            built-in ones. Everyone on this list sees the change instantly.
           </DialogDescription>
         </DialogHeader>
 
@@ -133,7 +153,10 @@ export function ManageStagesDialog() {
                 className={cn(
                   "flex items-center gap-2 rounded-md border border-border bg-card px-2 py-2 transition",
                   dragId === stage.id && "opacity-50",
-                  overId === stage.id && dragId && dragId !== stage.id && "border-primary ring-2 ring-ring/20",
+                  overId === stage.id &&
+                    dragId &&
+                    dragId !== stage.id &&
+                    "border-primary ring-2 ring-ring/20",
                 )}
               >
                 <GripVertical className="size-4 cursor-grab text-muted-foreground active:cursor-grabbing" />
@@ -162,7 +185,8 @@ export function ManageStagesDialog() {
                   defaultValue={stage.label}
                   onBlur={(event) => {
                     const next = event.target.value.trim();
-                    if (next && next !== stage.label) edit.mutate({ id: stage.id, patch: { label: next } });
+                    if (next && next !== stage.label)
+                      edit.mutate({ id: stage.id, patch: { label: next } });
                     else event.target.value = stage.label;
                   }}
                   onKeyDown={(event) => {
@@ -170,10 +194,14 @@ export function ManageStagesDialog() {
                   }}
                   className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm font-medium outline-none hover:border-input focus:border-input focus:ring-2 focus:ring-ring/25"
                 />
-                <span className="text-xs tabular-nums text-muted-foreground">{count.toLocaleString()}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {count.toLocaleString()}
+                </span>
                 <select
                   value={stage.color}
-                  onChange={(event) => edit.mutate({ id: stage.id, patch: { color: event.target.value } })}
+                  onChange={(event) =>
+                    edit.mutate({ id: stage.id, patch: { color: event.target.value } })
+                  }
                   className="h-7 rounded-md border border-input bg-card px-1.5 text-xs outline-none"
                 >
                   {STAGE_COLORS.map((option) => (
@@ -183,7 +211,10 @@ export function ManageStagesDialog() {
                   ))}
                 </select>
                 {stage.is_builtin ? (
-                  <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-label="Built-in stage, can't be deleted" />
+                  <Lock
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    aria-label="Built-in stage, can't be deleted"
+                  />
                 ) : (
                   <button
                     onClick={() => remove.mutate(stage)}
