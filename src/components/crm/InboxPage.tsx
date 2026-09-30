@@ -49,7 +49,7 @@ export function InboxPage() {
       const { data, error } = await supabase
         .from("email_messages")
         .select("*")
-        .eq("workspace", workspace)
+        .eq("workspace", workspace as never)
         .eq("user_id", user!.id)
         .order("sent_at", { ascending: false })
         .limit(500);

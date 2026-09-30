@@ -185,7 +185,7 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
           );
         await settleMail(context.userId, data.workspace, reservation, result.id);
         const { error: persistError } = await supabaseAdmin.from("email_messages").insert({
-          workspace: data.workspace,
+          workspace: data.workspace as never,
           lead_id: message.leadId,
           mail_account_id: account.id,
           user_id: context.userId,
@@ -251,7 +251,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
         const { data: authorizedLead } = await context.supabase
           .from("leads")
           .select("id")
-          .eq("workspace", meta.workspace)
+          .eq("workspace", meta.workspace as never)
           .eq("id", meta.leadId)
           .maybeSingle();
         if (!authorizedLead) continue;
@@ -274,7 +274,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
             ? new Date(dateHeader)
             : new Date(Number(message.internalDate ?? Date.now()));
           const { error: insertError } = await supabaseAdmin.from("email_messages").insert({
-            workspace: meta.workspace as string,
+            workspace: meta.workspace as never,
             lead_id: meta.leadId,
             mail_account_id: account.id,
             user_id: context.userId,
@@ -295,14 +295,14 @@ export const syncMailboxes = createServerFn({ method: "POST" })
             const { data: lead } = await supabaseAdmin
               .from("leads")
               .select("stage")
-              .eq("workspace", meta.workspace)
+              .eq("workspace", meta.workspace as never)
               .eq("id", meta.leadId)
               .maybeSingle();
             if (lead && (lead.stage === "not_contacted" || lead.stage === "contacted")) {
               await supabaseAdmin
                 .from("leads")
                 .update({ stage: "replied", last_touched_at: new Date().toISOString() })
-                .eq("workspace", meta.workspace)
+                .eq("workspace", meta.workspace as never)
                 .eq("id", meta.leadId);
             }
           }

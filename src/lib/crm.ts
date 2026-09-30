@@ -163,7 +163,7 @@ export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
   const { data, error } = await supabase
     .from("lead_stages")
     .select("*")
-    .eq("workspace", workspace)
+    .eq("workspace", workspace as never)
     .order("position", { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -185,7 +185,7 @@ export async function createStage(
   const { data, error } = await supabase
     .from("lead_stages")
     .insert({
-      workspace,
+      workspace: workspace as never,
       key: stageKey(input.label),
       label: input.label.trim(),
       color: input.color,
@@ -230,7 +230,7 @@ export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("leads")
     .select("*")
-    .eq("workspace", workspace)
+    .eq("workspace", workspace as never)
     .order("id")
     .limit(100);
   if (error) throw error;
@@ -277,7 +277,7 @@ async function nextNumber(workspace: Workspace) {
   const { data } = await supabase
     .from("leads")
     .select("number")
-    .eq("workspace", workspace)
+    .eq("workspace", workspace as never)
     .order("number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -296,7 +296,7 @@ export async function createLead(
     .from("leads")
     .insert({
       number: start,
-      workspace,
+      workspace: workspace as never,
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
@@ -331,7 +331,7 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
       stage: "not_contacted",
     };
   });
-  const { error } = await supabase.from("leads").insert(rows);
+  const { error } = await supabase.from("leads").insert(rows as never);
   if (error) throw error;
   return rows.length;
 }
