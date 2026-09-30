@@ -9,8 +9,8 @@ import {
 } from "../src/server/creator-service.server";
 import { creatorDb, withWorkspace } from "../src/server/creator-db.server";
 import { spec, observed } from "./domain-fixture";
-import type { Observation } from "../src/lib/mission-domain";
-import { discoverBrave } from "../src/server/creator-providers.server";
+import { genericDraft, type Observation } from "../src/lib/mission-domain";
+import { analyzeOpportunity, discoverBrave } from "../src/server/creator-providers.server";
 
 test("complete imported mission through production services, durable worker, approval, changed evidence, budget attempts and tenant denial", async (t) => {
   const db = await database(true);
@@ -74,6 +74,27 @@ test("complete imported mission through production services, durable worker, app
     assert.equal(view.missions[0]?.checkpoint, 1);
     assert.equal(view.drafts.length, 1);
     const draft = view.drafts[0]!;
+    const productMatches = (await executeCommand(actor, {
+      action: "productMatches",
+      workspace: w,
+      concept: "knife skills",
+    })) as { matches: { leadId: string; observation: Observation }[] };
+    assert.equal(productMatches.matches.length, 1);
+    assert.equal(productMatches.matches[0]?.leadId, draft.lead_id);
+    assert.equal(productMatches.matches[0]?.observation.contentUrl, o.contentUrl);
+    const similar = (await executeCommand(actor, {
+      action: "similarCreators",
+      workspace: w,
+      leadId: draft.lead_id,
+    })) as { matches: unknown[] };
+    assert.equal(similar.matches.length, 0, "reference creator is excluded from its own matches");
+    await assert.rejects(
+      executeCommand("10000000-0000-4000-8000-000000000002", {
+        action: "productMatches",
+        workspace: w,
+        concept: "knife skills",
+      }),
+    );
     await executeCommand(actor, {
       action: "feedback",
       workspace: w,
@@ -117,10 +138,40 @@ test("complete imported mission through production services, durable worker, app
       agreedTerms: "FIXTURE no actual agreement",
     });
     await executeCommand(actor, {
+      action: "editDraft",
+      workspace: w,
+      id: draft.id,
+      body: `Hello @${o.handle}, I watched your new series and know it earned you a fortune.`,
+    });
+    await assert.rejects(
+      executeCommand(actor, { action: "review", workspace: w, id: draft.id, decision: "approve" }),
+    );
+    await executeCommand(actor, {
+      action: "editDraft",
+      workspace: w,
+      id: draft.id,
+      body: genericDraft(o),
+    });
+    await executeCommand(actor, {
       action: "review",
       workspace: w,
       id: draft.id,
       decision: "approve",
+    });
+    const prepared = (await executeCommand(actor, {
+      action: "prepareManualOutreach",
+      workspace: w,
+      id: draft.id,
+    })) as { body: string };
+    assert.equal(prepared.body, genericDraft(o));
+    await withWorkspace(actor, w, true, async (sql) => {
+      await sql`update public.leads set stage='contacted' where workspace=${w} and id=${draft.lead_id}`;
+    });
+    await assert.rejects(
+      executeCommand(actor, { action: "prepareManualOutreach", workspace: w, id: draft.id }),
+    );
+    await withWorkspace(actor, w, true, async (sql) => {
+      await sql`update public.leads set stage='not_contacted' where workspace=${w} and id=${draft.lead_id}`;
     });
     // New comparable observation invalidates existing approved claim/draft.
     await executeCommand(actor, {
@@ -259,10 +310,19 @@ test("complete imported mission through production services, durable worker, app
         assert.equal(aiUsage?.actor, actor);
         await runWorkerUnit();
         assert.equal(calls, 1, "completed worker cannot rebill generation");
+        await withWorkspace(actor, w, true, async (sql) => {
+          await sql`update public.missions set state='queued' where workspace=${w} and id=${aiMission.id}`;
+        });
+        const replayed = await analyzeOpportunity(actor, w, aiMission.id, {
+          ...o,
+          handle: "fixture_ai_creator",
+        });
+        assert.equal(replayed.concept, "FIXTURE workshop hypothesis");
+        assert.equal(calls, 1, "saved DeepSeek hypothesis replays without another paid call");
       },
     );
     await t.test(
-      "Brave tariff estimate is labelled and duplicate paid retrieval is blocked",
+      "Brave result replays after a crash without a duplicate paid retrieval",
       async () => {
         process.env["CREATOR_PROVIDER_KEY_SECRET"] = Buffer.alloc(32, 17).toString("base64");
         await executeCommand(actor, {
@@ -313,8 +373,9 @@ test("complete imported mission through production services, durable worker, app
           await discoverBrave(actor, w, braveMission.id, { ...spec, source: "brave" }),
           [],
         );
-        await assert.rejects(
-          discoverBrave(actor, w, braveMission.id, { ...spec, source: "brave" }),
+        assert.deepEqual(
+          await discoverBrave(actor, w, braveMission.id, { ...spec, source: "brave" }),
+          [],
         );
         assert.equal(calls, 1);
         const [usage] = await withWorkspace(
@@ -327,6 +388,41 @@ test("complete imported mission through production services, durable worker, app
         assert.equal(usage?.["status"], "settled");
         assert.equal(usage?.["billing_basis"], "tariff_estimate");
         assert.equal(String(usage?.["settled_nanos"]), "200000000");
+      },
+    );
+    await t.test(
+      "ambiguous provider timeout keeps exposure and blocks automatic retry",
+      async () => {
+        const mission = (await executeCommand(actor, {
+          action: "createMission",
+          workspace: w,
+          spec: { ...spec, source: "brave", budgetNanos: 1_000_000_000 },
+          csv: "",
+          useAi: false,
+        })) as { id: string; hash: string };
+        await executeCommand(actor, {
+          action: "approveMission",
+          workspace: w,
+          id: mission.id,
+          hash: mission.hash,
+        });
+        let calls = 0;
+        globalThis.fetch = async () => {
+          calls++;
+          throw new Error("FIXTURE ambiguous timeout");
+        };
+        await assert.rejects(discoverBrave(actor, w, mission.id, { ...spec, source: "brave" }));
+        await assert.rejects(discoverBrave(actor, w, mission.id, { ...spec, source: "brave" }));
+        assert.equal(calls, 1);
+        const [attempt] = await withWorkspace(
+          actor,
+          w,
+          false,
+          async (sql) =>
+            sql`select status,reserved_nanos from public.usage_attempts where workspace=${w} and mission_id=${mission.id}`,
+        );
+        assert.equal(attempt?.["status"], "pending");
+        assert.equal(String(attempt?.["reserved_nanos"]), "700000000");
       },
     );
   } finally {

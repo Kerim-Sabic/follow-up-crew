@@ -5,16 +5,24 @@ import { toast } from "sonner";
 import { creatorCommand } from "@/lib/creator.functions";
 import { useWorkspace } from "@/lib/workspace";
 import { useAuth } from "@/lib/auth";
-import { compileBrief, qualify, type MissionSpec, type Observation } from "@/lib/mission-domain";
+import {
+  checkDraft,
+  compileBrief,
+  qualify,
+  type MissionSpec,
+  type Observation,
+} from "@/lib/mission-domain";
 import { Button } from "@/components/ui/button";
 import { TeamManagement } from "./TeamManagement";
 import { LocalHermes } from "./LocalHermes";
 import { EvidenceReview } from "./EvidenceReview";
+import { DraftEditor } from "./DraftEditor";
 import { PartnershipOperations } from "./PartnershipOperations";
 import { ProviderSetup } from "./ProviderSetup";
 import { UsageLedger, type UsageAttempt, type UsageGroup } from "./UsageLedger";
 import { invitationHash, rpc } from "@/lib/creator-api";
 import { nanosToUsd, usdToNanos } from "@/lib/money";
+import { projectMissionCost } from "@/lib/mission-cost";
 
 type Overview = {
   founders: {
@@ -33,6 +41,7 @@ type Overview = {
     checkpoint: number;
     problem: string | null;
     plan_hash: string;
+    use_ai: boolean;
   }[];
   drafts: {
     id: string;
@@ -89,6 +98,14 @@ type Overview = {
     preferences: { topics: string[]; avoidTopics?: string[] };
   }[];
 };
+type EvidenceMatch = {
+  id: string;
+  leadId: string;
+  username: string;
+  qualification: string;
+  observation: Observation;
+  reasons: string[];
+};
 const field = "w-full rounded-md border border-input bg-card px-3 py-2 text-sm";
 const defaults: MissionSpec = {
   version: 1,
@@ -143,6 +160,12 @@ export function MissionControl({
   const [topics, setTopics] = useState("");
   const [avoidTopics, setAvoidTopics] = useState("");
   const [feedbackReason, setFeedbackReason] = useState("");
+  const [exploration, setExploration] = useState<{
+    workspace: string;
+    title: string;
+    note: string;
+    matches: EvidenceMatch[];
+  } | null>(null);
   const query = useQuery({
     queryKey: ["creator", user?.id, workspace],
     queryFn: async () =>
@@ -152,6 +175,10 @@ export function MissionControl({
     refetchInterval: 10_000,
   });
   const data = query.data;
+  const providerConfigs = Object.fromEntries(
+    (data?.providers ?? []).map((provider) => [provider.provider, provider.configuration]),
+  );
+  const currentCost = projectMissionCost(spec, ai, providerConfigs);
   async function run(command: Record<string, unknown>, message = "Saved") {
     setBusy(true);
     try {
@@ -312,6 +339,25 @@ export function MissionControl({
               onChange={(e) => setSpec({ ...spec, productConcept: e.target.value })}
             />
           </Field>
+          <Button
+            variant="outline"
+            disabled={busy || spec.productConcept.trim().length < 5}
+            onClick={async () => {
+              const result = await run(
+                { action: "productMatches", concept: spec.productConcept },
+                "Existing content matches loaded",
+              );
+              if (result)
+                setExploration({
+                  workspace,
+                  title: `Existing creator evidence for: ${spec.productConcept}`,
+                  note: String(result["note"]),
+                  matches: result["matches"] as EvidenceMatch[],
+                });
+            }}
+          >
+            Search permitted workspace content for this product
+          </Button>
           <Field label="Approved candidate source">
             <select
               className={field}
@@ -384,6 +430,28 @@ export function MissionControl({
             Up to {spec.targetCount} candidates → strongest supported review queue → up to{" "}
             {spec.draftLimit} extractive drafts. No outreach is sent.
           </p>
+          <div className="rounded border p-3 text-sm" role="status">
+            <p className="font-medium">Cost before approval</p>
+            <p>
+              {currentCost.minimumNanos === null
+                ? "Lower amount unknown"
+                : `$${nanosToUsd(currentCost.minimumNanos)} documented minimum`}{" "}
+              ·{" "}
+              {currentCost.reservationCeilingNanos === null
+                ? "Reservation ceiling unavailable until provider setup"
+                : `up to $${nanosToUsd(currentCost.reservationCeilingNanos)} reservation exposure`}{" "}
+              · mission hard cap ${nanosToUsd(String(spec.budgetNanos))}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              This is a planning range, not a provider invoice. The mission may stop before all
+              research if its hard cap is reached.
+            </p>
+            {currentCost.assumptions.map((item) => (
+              <p key={item} className="text-xs text-muted-foreground">
+                {item}
+              </p>
+            ))}
+          </div>
           <Button
             disabled={busy || !data}
             onClick={() =>
@@ -410,6 +478,23 @@ export function MissionControl({
               {m.spec.requireNoLink ? "strict no-link" : "link permitted"} · max $
               {(m.spec.budgetNanos / 1e9).toFixed(2)} · {m.checkpoint} processed
             </p>
+            {m.state === "planned" &&
+              (() => {
+                const estimate = projectMissionCost(m.spec, m.use_ai, providerConfigs);
+                return (
+                  <p className="mt-2 text-sm">
+                    Current setup:{" "}
+                    {estimate.minimumNanos === null
+                      ? "documented minimum unknown"
+                      : `$${nanosToUsd(estimate.minimumNanos)} minimum`}{" "}
+                    ·{" "}
+                    {estimate.reservationCeilingNanos === null
+                      ? "reservation ceiling unknown"
+                      : `$${nanosToUsd(estimate.reservationCeilingNanos)} full-plan ceiling`}
+                    . Hard mission cap: ${nanosToUsd(String(m.spec.budgetNanos))}.
+                  </p>
+                );
+              })()}
             <details className="my-3">
               <summary className="cursor-pointer text-sm">Inspect exact contract</summary>
               <pre className="overflow-auto p-3 text-xs">{JSON.stringify(m.spec, null, 2)}</pre>
@@ -567,14 +652,17 @@ export function MissionControl({
                     ))}
                   </div>
                 </div>
-                <div className="rounded bg-secondary/50 p-4">
-                  <h3 className="text-sm font-semibold">Claim-checked approach</h3>
-                  <p className="mt-2 text-sm leading-6">{d.body}</p>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Personalization is an exact source excerpt. Approval is tied to this evidence
-                    and content. Copying or opening a profile does not record a send.
-                  </p>
-                </div>
+                <DraftEditor
+                  body={d.body}
+                  observation={d.observation}
+                  busy={busy}
+                  onSave={(body) =>
+                    run(
+                      { action: "editDraft", id: d.id, body },
+                      "Draft saved; approval reset for current evidence",
+                    )
+                  }
+                />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     disabled={busy || current.status !== "passed" || d.state !== "review"}
@@ -620,14 +708,45 @@ export function MissionControl({
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(d.body)
-                        .then(() => toast.success("Copied; no send recorded"))
-                        .catch(() => toast.error("Clipboard permission unavailable"))
-                    }
+                    disabled={busy}
+                    onClick={async () => {
+                      const result = await run(
+                        { action: "similarCreators", leadId: d.lead_id },
+                        "Similar observed creators loaded",
+                      );
+                      if (result)
+                        setExploration({
+                          workspace,
+                          title: `More like @${d.username}`,
+                          note: String(result["note"]),
+                          matches: result["matches"] as EvidenceMatch[],
+                        });
+                    }}
                   >
-                    Copy draft
+                    Find more like this
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={
+                      d.state !== "approved" ||
+                      current.status !== "passed" ||
+                      !checkDraft(d.body, d.observation)
+                    }
+                    onClick={async () => {
+                      const result = await run(
+                        { action: "prepareManualOutreach", id: d.id },
+                        "Current evidence and team contact checks passed",
+                      );
+                      if (!result) return;
+                      try {
+                        await navigator.clipboard.writeText(String(result["body"]));
+                        toast.success("Approved draft copied; no send recorded");
+                      } catch {
+                        toast.error("Clipboard permission unavailable");
+                      }
+                    }}
+                  >
+                    Copy approved draft
                   </Button>
                   <Button
                     variant="outline"
@@ -938,6 +1057,44 @@ export function MissionControl({
             <p key={p.id} className="text-sm">
               {p.display_name}
             </p>
+          ))}
+        </section>
+      )}
+      {exploration?.workspace === workspace && (tab === "mission" || tab === "review") && (
+        <section
+          className="space-y-3 rounded border p-4"
+          aria-label="Evidence-based creator exploration"
+        >
+          <h2 className="font-semibold">{exploration.title}</h2>
+          <p className="text-xs text-muted-foreground">{exploration.note}</p>
+          {!exploration.matches.length && (
+            <p className="text-sm">
+              No matching permitted observations in this workspace. This is not a provider search.
+            </p>
+          )}
+          {exploration.matches.map((match) => (
+            <article key={match.id} className="rounded border p-3 text-sm">
+              <strong>@{match.username}</strong> · {match.qualification} · observed{" "}
+              {new Date(match.observation.observedAt).toLocaleString()}
+              <p>
+                {match.observation.teachingTopic ?? "Teaching topic unresolved"} ·{" "}
+                {match.observation.followers?.toLocaleString() ?? "followers unknown"} followers ·
+                bio links {match.observation.bioLinks}
+              </p>
+              {match.reasons.map((reason) => (
+                <p key={reason} className="text-xs">
+                  {reason}
+                </p>
+              ))}
+              <a
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+                href={match.observation.contentUrl ?? match.observation.sourceUrl}
+              >
+                Inspect supporting content
+              </a>
+            </article>
           ))}
         </section>
       )}

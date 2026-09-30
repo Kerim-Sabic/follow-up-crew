@@ -6,12 +6,14 @@ import {
   qualify,
   composeDraft,
   checkDraft,
+  genericDraft,
   usageCost,
   parseCsv,
   compileBrief,
 } from "../src/lib/mission-domain";
 const now = Date.parse("2026-09-29T12:00:00Z");
 import { spec, observed } from "./domain-fixture";
+import { projectMissionCost } from "../src/lib/mission-cost";
 test("hard filters never accept missing, rounded, partial, stale, contradictory or search-only evidence", () => {
   assert.equal(qualify(spec, observed, now).status, "passed");
   for (const patch of [
@@ -52,9 +54,38 @@ test("brief suggestions are explicit and never relax an unrecognized hard filter
   });
   assert.deepEqual(compileBrief("Find cooking educators").suggestions, {});
 });
+test("mission cost projection separates documented tariff from maximum reservation", () => {
+  const now = Date.parse("2026-09-29T12:00:00Z");
+  const plan = { ...spec, source: "modash" as const, targetCount: 10 };
+  const config = {
+    modash: {
+      requestCeilingNanos: "700000000",
+      tariff: {
+        nanosPerRequest: "200000000",
+        sourceUrl: "https://example.test/tariff",
+        effectiveAt: "2026-09-01T00:00:00Z",
+        expiresAt: "2026-10-01T00:00:00Z",
+      },
+    },
+  };
+  assert.deepEqual(projectMissionCost(plan, false, config, now), {
+    minimumNanos: "200000000",
+    reservationCeilingNanos: "14700000000",
+    assumptions: [
+      "modash: up to 21 reserved requests at the configured per-request ceiling",
+      "The lower amount includes one discovery request at the reviewed tariff; further verification depends on yield",
+    ],
+  });
+  assert.equal(
+    projectMissionCost(plan, false, { modash: { requestCeilingNanos: "700000000" } }, now)
+      .minimumNanos,
+    null,
+  );
+});
 test("extractive claim checker blocks invented videos, income and prompt injection", () => {
   const draft = composeDraft(observed);
   assert.equal(checkDraft(draft.body, observed), true);
+  assert.equal(checkDraft(genericDraft(observed), observed), true);
   assert.equal(
     checkDraft(draft.body + " I watched your new video and you earned $100,000.", observed),
     false,

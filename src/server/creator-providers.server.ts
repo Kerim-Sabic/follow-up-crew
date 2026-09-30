@@ -4,11 +4,13 @@ import {
   priceSchema,
   requestTariffSchema,
   usageCost,
+  observationSchema,
   type Observation,
   type MissionSpec,
 } from "../lib/mission-domain";
 import { withWorkspace, requireAdmin } from "./creator-db.server";
 import { mapModashProfile, addModashContent } from "../lib/modash-mapping";
+import { deepSeekReservation } from "../lib/mission-cost";
 
 function encryptionKey() {
   const raw = process.env["CREATOR_PROVIDER_KEY_SECRET"];
@@ -87,6 +89,7 @@ async function recordTariffEstimate(
   id: string,
   configuration: Record<string, unknown>,
   responseStatus: number,
+  result: unknown,
 ) {
   const parsed = requestTariffSchema.safeParse(configuration["tariff"]);
   const tariff = parsed.success ? parsed.data : null;
@@ -99,6 +102,8 @@ async function recordTariffEstimate(
       await sql`select reserved_nanos,status from public.usage_attempts where workspace=${w} and id=${id} for update`;
     if (!attempt || attempt["status"] !== "pending")
       throw new Error("Provider attempt already resolved");
+    await sql`insert into private.provider_results(attempt_id,workspace,result)
+      values(${id},${w},${sql.json(result as never)})`;
     if (!current || !tariff) {
       await sql`update public.usage_attempts set usage=${sql.json({ responseStatus, measurement: "unresolved provider invoice" })} where workspace=${w} and id=${id}`;
       return;
@@ -108,6 +113,31 @@ async function recordTariffEstimate(
     await sql`insert into public.usage_settlements(attempt_id,workspace,amount_nanos,pricing_snapshot,measurement)
       values(${id},${w},${tariff.nanosPerRequest}::bigint,${sql.json(tariff)},'tariff-derived estimate') on conflict(attempt_id) do nothing`;
     await sql`update public.usage_attempts set status='settled',billing_basis='tariff_estimate',settled_nanos=${tariff.nanosPerRequest}::bigint,settled_at=now(),usage=${sql.json({ responseStatus, measurement: "tariff-derived estimate; invoice not reconciled" })} where workspace=${w} and id=${id}`;
+  });
+}
+async function replayOrBlockAttempt(
+  actor: string,
+  w: string,
+  mission: string,
+  provider: "brave" | "modash" | "deepseek",
+  key: string,
+) {
+  return withWorkspace(actor, w, false, async (sql) => {
+    const [binding] = await sql`select m.provider_bindings->${provider} =
+      jsonb_build_object('fingerprint',p.fingerprint,'configuration',p.configuration,'rights',p.rights_confirmed) as matches
+      from public.missions m join private.provider_connections p on p.workspace=m.workspace and p.provider=${provider}
+      where m.workspace=${w} and m.id=${mission} and m.actor=${actor}
+      and m.state in ('queued','running') and m.approval_hash=m.plan_hash
+      and m.approved_until>now()`;
+    if (binding?.["matches"] !== true)
+      throw new Error("Provider setup changed; a new mission approval is required");
+    const [attempt] = await sql`select r.result,a.status from public.usage_attempts a
+      left join private.provider_results r on r.attempt_id=a.id and r.workspace=a.workspace
+      where a.workspace=${w} and a.mission_id=${mission} and a.idempotency_key=${key}`;
+    if (!attempt) return { found: false as const };
+    if (attempt["result"] == null)
+      throw new Error("Paid request outcome is unresolved; reconcile it before any new request");
+    return { found: true as const, result: attempt["result"] };
   });
 }
 export async function saveProvider(
@@ -230,6 +260,9 @@ export async function discoverBrave(
   spec: MissionSpec,
 ): Promise<Observation[]> {
   const c = await connection(actor, w, "brave");
+  const requestKey = mission + ":brave:0";
+  const replay = await replayOrBlockAttempt(actor, w, mission, "brave", requestKey);
+  if (replay.found) return z.array(observationSchema).parse(replay.result);
   const nanos = z
     .string()
     .regex(/^[1-9]\d*$/)
@@ -241,15 +274,14 @@ export async function discoverBrave(
     true,
     async (sql) =>
       (
-        await sql`select private.reserve_attempt(${w},${mission},${mission + ":brave:0"},'brave','discovery',${nanos}::bigint,null,'admin-configured-ceiling') as id`
+        await sql`select private.reserve_attempt(${w},${mission},${requestKey},'brave','discovery',${nanos}::bigint,null,'admin-configured-ceiling') as id`
       )[0]!["id"] as string,
   );
   const url = new URL("https://api.search.brave.com/res/v1/web/search");
   url.searchParams.set("q", `site:instagram.com ${spec.query}`);
   url.searchParams.set("count", "20");
   const response = await providerJson(url.toString(), c.key, "brave");
-  await recordTariffEstimate(actor, w, attempt, c.config, 200);
-  const result = z
+  const parsed = z
     .object({
       web: z
         .object({
@@ -257,7 +289,12 @@ export async function discoverBrave(
         })
         .optional(),
     })
-    .parse(response);
+    .safeParse(response);
+  if (!parsed.success) {
+    await recordTariffEstimate(actor, w, attempt, c.config, 200, { error: "unsupported_response" });
+    throw new Error("Brave response did not match the reviewed discovery contract");
+  }
+  const result = parsed.data;
   const candidates: Observation[] = [];
   for (const item of result.web?.results ?? []) {
     let u: URL;
@@ -293,6 +330,7 @@ export async function discoverBrave(
       offers: "Unknown",
     });
   }
+  await recordTariffEstimate(actor, w, attempt, c.config, 200, candidates);
   return candidates;
 }
 export async function analyzeOpportunity(
@@ -313,22 +351,26 @@ export async function analyzeOpportunity(
     throw new Error(
       "Discover available models and configure a current, documented pricing version",
     );
-  const output = 1024n,
-    inputCeiling = 16_000n;
-  const inputRate =
-    BigInt(price.missNanosPerMillion) > BigInt(price.hitNanosPerMillion)
-      ? BigInt(price.missNanosPerMillion)
-      : BigInt(price.hitNanosPerMillion);
-  const reservation =
-    (inputCeiling * inputRate + output * BigInt(price.outputNanosPerMillion) + 999_999n) /
-    1_000_000n;
+  const requestKey = mission + ":deepseek:" + o.handle;
+  const replay = await replayOrBlockAttempt(actor, w, mission, "deepseek", requestKey);
+  const hypothesisSchema = z
+    .object({
+      label: z.literal("AI hypothesis — not evidence or agreed terms"),
+      concept: z.string().max(1000),
+      validation: z.string().max(1000),
+      risk: z.string().max(1000),
+    })
+    .strict();
+  if (replay.found) return hypothesisSchema.parse(replay.result);
+  const output = 1024n;
+  const reservation = deepSeekReservation(price);
   const id = await withWorkspace(
     actor,
     w,
     true,
     async (sql) =>
       (
-        await sql`select private.reserve_attempt(${w},${mission},${mission + ":deepseek:" + o.handle},'deepseek','opportunity',${reservation.toString()}::bigint,${price.model},${price.version}) as id`
+        await sql`select private.reserve_attempt(${w},${mission},${requestKey},'deepseek','opportunity',${reservation.toString()}::bigint,${price.model},${price.version}) as id`
       )[0]!["id"] as string,
   );
   const response = z
@@ -360,11 +402,6 @@ export async function analyzeOpportunity(
       }),
     );
   const measured = response.model === price.model ? usageCost(response.usage, price) : null;
-  await withWorkspace(actor, w, true, async (sql) => {
-    await sql`update public.usage_attempts set resolved_model=${response.model},usage=${sql.json((response.usage ?? {}) as never)},settled_nanos=${measured?.toString() ?? null}::bigint,status=${measured === null ? "pending" : "settled"},billing_basis=${measured === null ? "unresolved" : "provider_usage_priced"},settled_at=${measured === null ? null : new Date()} where workspace=${w} and id=${id} and status='pending'`;
-    if (measured !== null)
-      await sql`insert into public.usage_settlements(attempt_id,workspace,amount_nanos,pricing_snapshot,measurement) values(${id},${w},${measured.toString()}::bigint,${sql.json(price)},'provider token usage; local price estimate') on conflict(attempt_id) do nothing`;
-  });
   const hypothesis = z
     .object({
       concept: z.string().max(1000),
@@ -373,7 +410,18 @@ export async function analyzeOpportunity(
     })
     .strict()
     .parse(JSON.parse(response.choices[0]?.message.content ?? ""));
-  return { label: "AI hypothesis — not evidence or agreed terms", ...hypothesis };
+  const result = hypothesisSchema.parse({
+    label: "AI hypothesis — not evidence or agreed terms",
+    ...hypothesis,
+  });
+  await withWorkspace(actor, w, true, async (sql) => {
+    await sql`update public.usage_attempts set resolved_model=${response.model},usage=${sql.json((response.usage ?? {}) as never)},settled_nanos=${measured?.toString() ?? null}::bigint,status=${measured === null ? "pending" : "settled"},billing_basis=${measured === null ? "unresolved" : "provider_usage_priced"},settled_at=${measured === null ? null : new Date()} where workspace=${w} and id=${id} and status='pending'`;
+    if (measured !== null)
+      await sql`insert into public.usage_settlements(attempt_id,workspace,amount_nanos,pricing_snapshot,measurement) values(${id},${w},${measured.toString()}::bigint,${sql.json(price)},'provider token usage; local price estimate') on conflict(attempt_id) do nothing`;
+    await sql`insert into private.provider_results(attempt_id,workspace,result)
+      values(${id},${w},${sql.json(result)})`;
+  });
+  return result;
 }
 
 async function modashCall(
@@ -388,6 +436,13 @@ async function modashCall(
     throw new Error(
       "Modash Raw API restricted access and commercial usage rights must be reviewed for this account",
     );
+  const requestKey = mission + ":modash:" + path + ":" + value;
+  const replay = await replayOrBlockAttempt(actor, w, mission, "modash", requestKey);
+  if (replay.found) {
+    if ((replay.result as Record<string, unknown>)["error"] === "not_found")
+      throw new Error("Provider previously returned a billable not-found response");
+    return { data: replay.result, coverageReviewed: c.config["linkCoverageReviewed"] === true };
+  }
   const ceiling = z
     .string()
     .regex(/^[1-9]\d*$/)
@@ -398,7 +453,7 @@ async function modashCall(
     true,
     async (sql) =>
       (
-        await sql`select private.reserve_attempt(${w},${mission},${mission + ":modash:" + path + ":" + value},'modash',${path},${ceiling}::bigint,null,'admin-configured-ceiling') as id`
+        await sql`select private.reserve_attempt(${w},${mission},${requestKey},'modash',${path},${ceiling}::bigint,null,'admin-configured-ceiling') as id`
       )[0]!["id"] as string,
   );
   const url = new URL(`https://api.modash.io/v1/raw/ig/${path}`);
@@ -406,12 +461,12 @@ async function modashCall(
   // Provider docs count even 404 as consumed requests. Any unmeasured outcome stays reserved.
   try {
     const data = await providerJson(url.toString(), c.key, "modash");
-    await recordTariffEstimate(actor, w, attempt, c.config, 200);
+    await recordTariffEstimate(actor, w, attempt, c.config, 200, data);
     return { data, coverageReviewed: c.config["linkCoverageReviewed"] === true };
   } catch (error) {
     // Modash documents Raw API 404 responses as billable requests.
     if (error instanceof ProviderResponseError && error.status === 404)
-      await recordTariffEstimate(actor, w, attempt, c.config, 404);
+      await recordTariffEstimate(actor, w, attempt, c.config, 404, { error: "not_found" });
     throw error;
   }
 }

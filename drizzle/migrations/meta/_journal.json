@@ -78,6 +78,20 @@
       "when": 1790717952838,
       "tag": "0010_durable-bulk-operations",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790727330454,
+      "tag": "0011_provider-result-replay",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790727840456,
+      "tag": "0012_content-search",
+      "breakpoints": true
     }
   ]
 }

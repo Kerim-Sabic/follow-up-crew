@@ -165,6 +165,9 @@ export function composeDraft(o: Observation) {
   const body = `Hello @${o.handle}, your published content includes: “${excerpt}”. Would you be open to discussing a small practical workshop and testing the idea with interested learners? We would agree the scope and terms together.`;
   return { body, claims: [{ quote: excerpt, sourceUrl: o.contentUrl }], templateVersion: 1 };
 }
+export function genericDraft(o: Observation) {
+  return `Hello @${o.handle}, would you be open to discussing a small practical workshop and testing the idea with interested learners? We would agree the scope and terms together.`;
+}
 export function suspicious(value: string) {
   return /ignore.{0,40}(instruction|previous)|system\s*:|api.?key|export.{0,20}leads|change.{0,20}budget|reveal.{0,20}secret/i.test(
     value,
@@ -172,10 +175,28 @@ export function suspicious(value: string) {
 }
 export function checkDraft(body: string, o: Observation) {
   try {
-    return body === composeDraft(o).body;
+    return body === composeDraft(o).body || body === genericDraft(o);
   } catch {
-    return false;
+    return body === genericDraft(o);
   }
+}
+export function analyzeDraft(body: string, o: Observation) {
+  if (body === genericDraft(o))
+    return {
+      status: "SUPPORTED" as const,
+      explanation:
+        "Generic invitation contains no content-specific claim; the handle matches this observation.",
+    };
+  if (checkDraft(body, o))
+    return {
+      status: "SUPPORTED" as const,
+      explanation: "The exact content excerpt maps to the recorded source URL and observation.",
+    };
+  return {
+    status: "UNSUPPORTED" as const,
+    explanation:
+      "Edited wording contains a claim or phrasing outside the deterministic evidence mapping. Remove it or use a supported version before approval.",
+  };
 }
 export const priceSchema = z.object({
   version: z.string().min(1),
