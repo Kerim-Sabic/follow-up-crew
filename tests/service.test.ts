@@ -16,8 +16,11 @@ test("complete imported mission through production services, durable worker, app
   const db = await database(true);
   const server = new PGLiteSocketServer({ db, port: 0, host: "127.0.0.1", maxConnections: 1 });
   await server.start();
-  process.env["CREATOR_DATABASE_URL"] =
-    "postgresql://postgres:postgres@" + server.getServerConn() + "/postgres";
+  const testDatabaseUrl = "postgresql://postgres:postgres@" + server.getServerConn() + "/postgres";
+  const priorCreatorDatabaseUrl = process.env["CREATOR_DATABASE_URL"];
+  const priorSupabaseDbUrl = process.env["SUPABASE_DB_URL"];
+  delete process.env["CREATOR_DATABASE_URL"];
+  process.env["SUPABASE_DB_URL"] = testDatabaseUrl;
   const actor = "10000000-0000-4000-8000-000000000001",
     w = "00000000-0000-4000-8000-000000000001";
   const priorFetch = globalThis.fetch;
@@ -428,6 +431,10 @@ test("complete imported mission through production services, durable worker, app
   } finally {
     globalThis.fetch = priorFetch;
     await creatorDb().end({ timeout: 1 });
+    if (priorCreatorDatabaseUrl === undefined) delete process.env["CREATOR_DATABASE_URL"];
+    else process.env["CREATOR_DATABASE_URL"] = priorCreatorDatabaseUrl;
+    if (priorSupabaseDbUrl === undefined) delete process.env["SUPABASE_DB_URL"];
+    else process.env["SUPABASE_DB_URL"] = priorSupabaseDbUrl;
     await server.stop();
     await db.close();
   }

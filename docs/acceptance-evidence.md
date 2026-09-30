@@ -43,6 +43,13 @@ Read AGENTS.md, all baseline Drizzle migrations, authentication middleware, work
 
 The benchmark uses embedded PGlite PostgreSQL on local Windows, no network latency, concurrency one. Batches contain 1,000 synthetic rows and explicitly refresh planner statistics because PGlite has no autovacuum worker. The first single-statement import attempt after adding duplicate protection was stopped when it became slow; a normalized-handle index and bounded/statistics-refreshed import were added before rerunning. Query timings do not prove end-to-end UI response or mass-export performance. The results file records CPU, runtime, timestamps, sample size, p50/p95, bytes and limitations.
 
+## Lovable Cloud setup evidence (2026-09-30)
+
+- User-provided export from the Lovable SQL editor after migration 0005 reports 8 workspaces, 9,120 leads with non-null `workspace_id`, and 13 stages with non-null `workspace_id`.
+- A second user-provided export reports migration ledger hashes matching repository migrations 0000–0005. The user confirmed having a restorable backup, but no restore was rehearsed and the environment was not independently classified as staging or production.
+- A screenshot of More → Cloud → Secrets shows no custom `CREATOR_DATABASE_URL`. The server adapter now prefers this restricted URL and falls back to platform-managed `SUPABASE_DB_URL`. The fallback passes the synthetic service fixture only; Lovable runtime binding, direct database permissions and authenticated app queries remain unverified. This is not live-tested app functionality.
+- No creator mission, live provider call, invitation, outreach, or deployed runtime test occurred.
+
 ## External integration truth
 
 DeepSeek HTTP is fixture-tested; Brave and Modash network retrieval are implemented but not live-tested. Modash's optional field mapping is separately fixture-tested. The public Supabase values already in the repository were preserved; no staging service key, creator staging database URL, or paid-provider credential was supplied. `.env.local` was absent at this check. Docker engine is unavailable, so worker container execution is untested. No migrations applied to a remote database, no purchase, no provider generation charge, no outreach, no live proposal sharing, no deployment. The user has indicated they can configure staging access, but no real staging identity or connection has yet been verified.
