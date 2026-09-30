@@ -37,4 +37,11 @@ export default tseslint.config(
     },
   },
   eslintPluginPrettier,
+  {
+    rules: {
+      // Windows checkouts may use CRLF; preserve the repository's content
+      // checks without turning platform line endings into thousands of errors.
+      "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
 );

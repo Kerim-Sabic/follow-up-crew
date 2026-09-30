@@ -30,14 +30,17 @@ test("real PostgreSQL fixture: legacy preservation, RLS, verified founders, invi
     assert.equal((await db.query("SELECT * FROM lead_notes")).rows.length, 0);
     assert.equal((await db.query("SELECT * FROM developer_entitlements")).rows.length, 0);
     const own = (await db.query<{ id: string }>("SELECT id FROM workspaces")).rows[0]!.id;
-    await db.query("INSERT INTO leads(username,workspace) VALUES($1,$2)", ["fixture_private", own]);
+    await db.query("INSERT INTO leads(username,workspace_id) VALUES($1,$2)", [
+      "fixture_private",
+      own,
+    ]);
     await assert.rejects(
-      db.query("INSERT INTO leads(username,workspace) VALUES($1,$2)", ["@FIXTURE_PRIVATE", own]),
+      db.query("INSERT INTO leads(username,workspace_id) VALUES($1,$2)", ["@FIXTURE_PRIVATE", own]),
       /already exists/,
     );
     await assert.rejects(
       db.exec(
-        `INSERT INTO leads(username,workspace) VALUES('forged','00000000-0000-4000-8000-000000000001')`,
+        `INSERT INTO leads(username,workspace_id) VALUES('forged','00000000-0000-4000-8000-000000000001')`,
       ),
     );
     await actor(db, founder);

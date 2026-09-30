@@ -120,7 +120,7 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
       .channel(`crm-live:${userId}:${workspace}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "leads", filter: `workspace=eq.${workspace}` },
+        { event: "*", schema: "public", table: "leads", filter: `workspace_id=eq.${workspace}` },
         refetchLeads,
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "lead_notes" }, () => {

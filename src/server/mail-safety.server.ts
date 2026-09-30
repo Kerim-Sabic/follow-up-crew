@@ -29,7 +29,7 @@ export async function reserveMail(
         "Workspace sending is paused. An authorized administrator must enable it after staging verification.",
       );
     const [lead] =
-      await sql`select * from public.leads where workspace=${w} and id=${leadId} for update`;
+      await sql`select * from public.leads where workspace_id=${w} and id=${leadId} for update`;
     if (!lead || String(lead["email"] ?? "").toLowerCase() !== to.toLowerCase())
       throw new Error("Recipient must match the authorized lead contact");
     const [account] =
@@ -40,7 +40,7 @@ export async function reserveMail(
     if (suppression) throw new Error("Do not contact is active");
     if (!reply) {
       const [response] =
-        await sql`select 1 from public.email_messages where workspace=${w} and lead_id=${leadId} and direction='in' limit 1`;
+        await sql`select 1 from public.email_messages where workspace_id=${w} and lead_id=${leadId} and direction='in' limit 1`;
       if (response || ["replied", "deal", "dead"].includes(String(lead["stage"])))
         throw new Error("Conversation or lead status stops initial outreach");
     }

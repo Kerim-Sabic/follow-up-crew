@@ -47,6 +47,18 @@ The benchmark uses embedded PGlite PostgreSQL on local Windows, no network laten
 
 DeepSeek HTTP is fixture-tested; Brave and Modash network retrieval are implemented but not live-tested. Modash's optional field mapping is separately fixture-tested. The public Supabase values already in the repository were preserved; no staging service key, creator staging database URL, or paid-provider credential was supplied. `.env.local` was absent at this check. Docker engine is unavailable, so worker container execution is untested. No migrations applied to a remote database, no purchase, no provider generation charge, no outreach, no live proposal sharing, no deployment. The user has indicated they can configure staging access, but no real staging identity or connection has yet been verified.
 
+## Workspace migration continuation (2026-09-30)
+
+- Repository branch: `fix/workspace-expand-contract`, based on the inspected local `main`; no remote commit has been published yet.
+- Migration 0005 preserves the legacy `workspace` enum on leads/stages/email messages, backfills UUID `workspace_id` values, and leaves existing CRM policies in place for the expansion phase. Migrations 0006–0008 and application queries were updated to use UUID scope. New migration 0013 contains the separate RLS policy cutover; it is not applied to any remote database.
+- `npm test`: PASS, 13 tests. The legacy-seeded PostgreSQL test is PGlite/embedded fixture coverage, not a real PostgreSQL server or authenticated Supabase staging test. It preserves fixture leads and notes and checks UUID scoping, RLS, founder bootstrap, invitations, and revocation.
+- `npm run test:db`: PASS, 2 tests against the same embedded PostgreSQL fixture.
+- `npm run typecheck`: PASS.
+- `npm run build`: PASS.
+- `npm run lint`: PASS with 0 errors and 14 existing warnings. Prettier accepts the repository's Windows CRLF checkouts while continuing formatting checks; no lint rules or files were disabled.
+- Lovable account inspection: the connected owner's workspace was listed, but project `651b5cdb-d54e-4d63-929a-b4f289f79421` was absent from its 34-project inventory and project lookup returned not found. Browser control also failed in this environment. No live schema, database cache, auth identity, or founder provisioning was inspected or changed.
+- Live mission evidence: none in this continuation. No live provider call, deployment, invitation, outreach, or remote migration was performed.
+
 ## Documentation consulted
 
 - Supabase RLS: https://supabase.com/docs/guides/database/postgres/row-level-security

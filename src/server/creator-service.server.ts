@@ -199,11 +199,11 @@ async function storeObservation(
       await sql`select 1 from public.lead_suppressions where workspace=${w} and handle=${o.handle}`;
     if (suppressed) return { skipped: "suppressed" };
     let [lead] =
-      await sql`select id from public.leads where workspace=${w} and lower(regexp_replace(username,'^@',''))=${o.handle} order by id limit 1`;
+      await sql`select id from public.leads where workspace_id=${w} and lower(regexp_replace(username,'^@',''))=${o.handle} order by id limit 1`;
     if (lead && !allowExisting) return { skipped: "existing workspace lead" };
     if (!lead)
       [lead] =
-        await sql`insert into public.leads(workspace,username,instagram_url,niche,match_note) values(${w},${o.handle},${"https://www.instagram.com/" + o.handle + "/"},${o.teachingTopic},'Retrieved/imported candidate; inspect evidence before contact') returning id`;
+        await sql`insert into public.leads(workspace_id,username,instagram_url,niche,match_note) values(${w},${o.handle},${"https://www.instagram.com/" + o.handle + "/"},${o.teachingTopic},'Retrieved/imported candidate; inspect evidence before contact') returning id`;
     const [previous] =
       await sql`select version from public.creator_evidence where workspace=${w} and lead_id=${lead!["id"]} and mission_id=${mission} order by version desc limit 1`;
     const qualification = qualify(spec, o);
@@ -246,7 +246,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
   if (c.action === "recheck") {
     await withWorkspace(actor, w, true, async (sql) => {
       const [l] =
-        await sql`select username from public.leads where workspace=${w} and id=${c.leadId}`;
+        await sql`select username from public.leads where workspace_id=${w} and id=${c.leadId}`;
       if (!l || String(l["username"]).replace(/^@/, "").toLowerCase() !== c.observation.handle)
         throw new Error("Observation identity does not match lead");
     });
@@ -287,7 +287,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           const matches = await sql`select e.id,e.lead_id,l.username,e.observation,e.qualification,
           ts_rank(to_tsvector('english',coalesce(e.observation->>'teachingTopic','') || ' ' || coalesce(e.observation->>'contentExcerpt','')),
           plainto_tsquery('english',${query})) as content_rank
-          from public.creator_evidence e join public.leads l on l.workspace=e.workspace and l.id=e.lead_id
+          from public.creator_evidence e join public.leads l on l.workspace_id=e.workspace and l.id=e.lead_id
           where e.workspace=${w} and (${sourceLead}::uuid is null or e.lead_id<>${sourceLead}::uuid)
           and e.observation->>'rightsAttested'='true' and e.observation->>'contentUrl' is not null
           and to_tsvector('english',coalesce(e.observation->>'teachingTopic','') || ' ' || coalesce(e.observation->>'contentExcerpt',''))
@@ -331,9 +331,9 @@ export async function executeCommand(actor: string, command: Command): Promise<u
        (select count(*) from jsonb_array_elements_text(coalesce((select preferences->'topics' from public.preference_versions where workspace=${w} order by created_at desc limit 1),'[]')) topic where strpos(lower(coalesce(e.observation->>'teachingTopic','')),lower(topic))>0)
        - (select count(*) from jsonb_array_elements_text(coalesce((select preferences->'avoidTopics' from public.preference_versions where workspace=${w} order by created_at desc limit 1),'[]')) topic where strpos(lower(coalesce(e.observation->>'teachingTopic','')),lower(topic))>0)
      else 0 end as preference_matches
-     from public.partnership_drafts d join public.leads l on l.id=d.lead_id and l.workspace=d.workspace join public.creator_evidence e on e.id=d.evidence_id and e.workspace=d.workspace join public.missions m on m.id=e.mission_id and m.workspace=d.workspace where d.workspace=${w} order by case d.state when 'invalidated' then 0 when 'review' then 1 else 2 end,preference_matches desc,d.created_at desc limit 10`;
+     from public.partnership_drafts d join public.leads l on l.id=d.lead_id and l.workspace_id=d.workspace join public.creator_evidence e on e.id=d.evidence_id and e.workspace=d.workspace join public.missions m on m.id=e.mission_id and m.workspace=d.workspace where d.workspace=${w} order by case d.state when 'invalidated' then 0 when 'review' then 1 else 2 end,preference_matches desc,d.created_at desc limit 10`;
           const evidence =
-            await sql`select e.*,l.username from public.creator_evidence e join public.leads l on l.id=e.lead_id and l.workspace=e.workspace where e.workspace=${w} order by e.retrieved_at desc limit 20`;
+            await sql`select e.*,l.username from public.creator_evidence e join public.leads l on l.id=e.lead_id and l.workspace_id=e.workspace where e.workspace=${w} order by e.retrieved_at desc limit 20`;
           const providers =
             await sql`select provider,fingerprint,models,validated_at,rights_confirmed,configuration from private.provider_connections where workspace=${w}`;
           const usage = await sql`select a.actor,a.provider,a.currency,count(*)::int as attempts,
@@ -360,14 +360,14 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           const projects =
             await sql`select * from public.partnership_projects where workspace=${w} order by created_at desc limit 20`;
           const replies =
-            await sql`select id,lead_id,subject,sent_at from public.email_messages where workspace=${w} and user_id=${actor} and direction='in' and not is_read order by sent_at desc limit 10`;
+            await sql`select id,lead_id,subject,sent_at from public.email_messages where workspace_id=${w} and user_id=${actor} and direction='in' and not is_read order by sent_at desc limit 10`;
           const followups = await sql`select id,username,last_touched_at,owner_id from public.leads
-          where workspace=${w} and stage='contacted' and last_touched_at<now()-interval '2 days'
+          where workspace_id=${w} and stage='contacted' and last_touched_at<now()-interval '2 days'
           and (owner_id=${actor} or owner_id is null)
           order by last_touched_at asc,id limit 10`;
           const approvedDrafts =
             await sql`select d.id,l.username,d.approved_at from public.partnership_drafts d
-          join public.leads l on l.workspace=d.workspace and l.id=d.lead_id
+          join public.leads l on l.workspace_id=d.workspace and l.id=d.lead_id
           where d.workspace=${w} and d.state='approved' and (l.owner_id=${actor} or l.owner_id is null)
           order by d.approved_at asc limit 10`;
           const [entitlement] = await sql`select private.is_developer() as developer`;
@@ -510,7 +510,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
                 : "manually_recorded";
           await sql`update public.partnership_drafts set state=${next},approval_hash=${c.decision === "reject" ? null : approval},approved_by=${actor},approved_at=now() where workspace=${w} and id=${c.id}`;
           if (c.decision === "record_manual")
-            await sql`update public.leads set stage='contacted',last_touched_at=now(),last_touched_by=${actor} where workspace=${w} and id=${d["lead_id"]}`;
+            await sql`update public.leads set stage='contacted',last_touched_at=now(),last_touched_by=${actor} where workspace_id=${w} and id=${d["lead_id"]}`;
           await sql`insert into public.audit_events(workspace,actor,action,resource_id) values(${w},${actor},${"draft." + next},${c.id})`;
           return { state: next };
         }
@@ -539,7 +539,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
             from public.partnership_drafts d
             join public.creator_evidence e on e.workspace=d.workspace and e.id=d.evidence_id
             join public.missions m on m.workspace=d.workspace and m.id=e.mission_id
-            join public.leads l on l.workspace=d.workspace and l.id=d.lead_id
+            join public.leads l on l.workspace_id=d.workspace and l.id=d.lead_id
             where d.workspace=${w} and d.id=${c.id} for update of d,l`;
           if (!draft || draft["state"] !== "approved")
             throw new Error("Approved draft unavailable");
@@ -563,7 +563,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           const [collision] = await sql`select
             exists(select 1 from public.lead_suppressions where workspace=${w} and handle=${observation.handle}) as suppressed,
             exists(select 1 from private.mail_outbox where workspace=${w} and lead_id=${draft["lead_id"]} and status in ('pending','sent')) as queued_mail,
-            exists(select 1 from public.email_messages where workspace=${w} and lead_id=${draft["lead_id"]} and direction='out') as sent_mail,
+            exists(select 1 from public.email_messages where workspace_id=${w} and lead_id=${draft["lead_id"]} and direction='out') as sent_mail,
             exists(select 1 from public.partnership_drafts where workspace=${w} and lead_id=${draft["lead_id"]} and state='manually_recorded') as recorded`;
           if (
             collision?.["suppressed"] ||
@@ -576,7 +576,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         }
         case "suppress": {
           await sql`insert into public.lead_suppressions(workspace,handle,reason) values(${w},${c.handle.toLowerCase()},${c.reason}) on conflict(workspace,handle) do nothing`;
-          await sql`update public.partnership_drafts set state='invalidated',approval_hash=null where workspace=${w} and lead_id in (select id from public.leads where workspace=${w} and lower(regexp_replace(username,'^@',''))=${c.handle.toLowerCase()})`;
+          await sql`update public.partnership_drafts set state='invalidated',approval_hash=null where workspace=${w} and lead_id in (select id from public.leads where workspace_id=${w} and lower(regexp_replace(username,'^@',''))=${c.handle.toLowerCase()})`;
           return { suppressed: true };
         }
         case "preferences": {
@@ -603,7 +603,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         }
         case "saveProposal": {
           const [lead] =
-            await sql`select id from public.leads where workspace=${w} and id=${c.leadId}`;
+            await sql`select id from public.leads where workspace_id=${w} and id=${c.leadId}`;
           if (!lead) throw new Error("Lead unavailable");
           return (
             await sql`insert into public.proposals(workspace,lead_id,title,public_content,created_by) values(${w},${c.leadId},${c.title},${c.content},${actor}) returning id`
@@ -631,7 +631,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         }
         case "handoff": {
           const [lead] =
-            await sql`select id from public.leads where workspace=${w} and id=${c.leadId}`;
+            await sql`select id from public.leads where workspace_id=${w} and id=${c.leadId}`;
           if (!lead) throw new Error("Lead unavailable");
           const [project] =
             await sql`insert into public.partnership_projects(workspace,lead_id,actor,agreed_scope,agreement_reference,validation_task,agreed_terms) values(${w},${c.leadId},${actor},${c.scope},${c.agreementReference},${c.validationTask},${c.agreedTerms}) on conflict(workspace,lead_id) do nothing returning id`;
@@ -716,7 +716,7 @@ export async function runWorkerUnit() {
     if (o && index < spec.targetCount) {
       const known = await withWorkspace(actor, w, false, async (sql) => {
         const [exists] =
-          await sql`select 1 from public.leads where workspace=${w} and lower(regexp_replace(username,'^@',''))=${o!.handle} union all select 1 from public.lead_suppressions where workspace=${w} and handle=${o!.handle} limit 1`;
+          await sql`select 1 from public.leads where workspace_id=${w} and lower(regexp_replace(username,'^@',''))=${o!.handle} union all select 1 from public.lead_suppressions where workspace=${w} and handle=${o!.handle} limit 1`;
         return Boolean(exists);
       });
       if (spec.source === "modash" && !known) o = await enrichModash(actor, w, id, spec, o);

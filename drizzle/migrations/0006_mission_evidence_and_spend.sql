@@ -13,7 +13,7 @@ CREATE TABLE public.creator_evidence (
  observed_at timestamptz NOT NULL, retrieved_at timestamptz NOT NULL DEFAULT now(),
  version integer NOT NULL DEFAULT 1, qualification text NOT NULL CHECK(qualification IN ('passed','failed','unresolved')),
  reasons jsonb NOT NULL, UNIQUE(workspace,id), UNIQUE(mission_id,lead_id,version),
- FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id),
+ FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id),
  FOREIGN KEY(workspace,mission_id) REFERENCES public.missions(workspace,id)
 );
 CREATE INDEX evidence_queue ON public.creator_evidence(workspace,mission_id,qualification,lead_id);
@@ -23,7 +23,7 @@ CREATE TABLE public.partnership_drafts (
  state text NOT NULL DEFAULT 'review' CHECK(state IN ('review','approved','invalidated','rejected','manually_recorded')),
  approval_hash text, approved_by uuid, approved_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(evidence_id), FOREIGN KEY(workspace,evidence_id) REFERENCES public.creator_evidence(workspace,id),
- FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
+ FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
 );
 CREATE TABLE public.lead_suppressions (
  workspace uuid NOT NULL REFERENCES public.workspaces(id), handle text NOT NULL,
@@ -100,14 +100,14 @@ GRANT EXECUTE ON FUNCTION private.reserve_attempt(uuid,uuid,text,text,text,bigin
 
 CREATE FUNCTION public.lead_page(w uuid,q text DEFAULT '',s text DEFAULT '',o text DEFAULT '',e text DEFAULT '',after_id uuid DEFAULT NULL,page_size integer DEFAULT 100)
 RETURNS SETOF public.leads LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
- SELECT * FROM public.leads WHERE workspace=w AND (after_id IS NULL OR id>after_id)
+ SELECT * FROM public.leads WHERE workspace_id=w AND (after_id IS NULL OR id>after_id)
  AND (q='' OR strpos(lower(username || ' ' || coalesce(full_name,'') || ' ' || coalesce(email,'')),lower(left(q,100)))>0)
  AND (s='' OR stage=s) AND (o='' OR (o='mine' AND owner_id=auth.uid()) OR (o='unassigned' AND owner_id IS NULL))
  AND (e='' OR (e='yes' AND email IS NOT NULL AND email<>'') OR (e='no' AND (email IS NULL OR email='')))
  ORDER BY id LIMIT greatest(1,least(page_size,101))
 $$;
 CREATE FUNCTION public.lead_counts(w uuid) RETURNS TABLE(stage text,total bigint) LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
- SELECT stage,count(*) FROM public.leads WHERE workspace=w GROUP BY stage
+ SELECT stage,count(*) FROM public.leads WHERE workspace_id=w GROUP BY stage
 $$;
 REVOKE ALL ON FUNCTION public.lead_page(uuid,text,text,text,text,uuid,integer),public.lead_counts(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.lead_page(uuid,text,text,text,text,uuid,integer),public.lead_counts(uuid) TO authenticated;
@@ -116,7 +116,7 @@ GRANT EXECUTE ON FUNCTION public.lead_page(uuid,text,text,text,text,uuid,integer
 CREATE FUNCTION private.guard_assignment() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
 BEGIN
  IF auth.uid() IS NOT NULL THEN
- IF NEW.owner_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.workspace_members WHERE workspace=NEW.workspace AND user_id=NEW.owner_id)
+ IF NEW.owner_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.workspace_members WHERE workspace=NEW.workspace_id AND user_id=NEW.owner_id)
  THEN RAISE EXCEPTION 'Assignee is not a member'; END IF;
  IF TG_OP='UPDATE' AND OLD.owner_id IS NOT NULL AND OLD.owner_id IS DISTINCT FROM NEW.owner_id AND OLD.owner_id<>auth.uid()
  THEN RAISE EXCEPTION 'Lead already claimed; current owner must release it'; END IF;

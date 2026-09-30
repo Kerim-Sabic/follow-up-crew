@@ -26,6 +26,7 @@ export type Database = {
           to_email: string | null;
           user_id: string | null;
           workspace: string;
+          workspace_id: string;
         };
         Insert: {
           body?: string | null;
@@ -44,6 +45,7 @@ export type Database = {
           to_email?: string | null;
           user_id?: string | null;
           workspace?: string;
+          workspace_id: string;
         };
         Update: {
           body?: string | null;
@@ -62,6 +64,7 @@ export type Database = {
           to_email?: string | null;
           user_id?: string | null;
           workspace?: string;
+          workspace_id?: string;
         };
         Relationships: [
           {
@@ -87,6 +90,7 @@ export type Database = {
           created_at: string;
           id: string;
           lead_id: string;
+          workspace_id: string;
         };
         Insert: {
           author_id: string;
@@ -94,6 +98,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           lead_id: string;
+          workspace_id?: string;
         };
         Update: {
           author_id?: string;
@@ -101,6 +106,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           lead_id?: string;
+          workspace_id?: string;
         };
         Relationships: [
           {
@@ -130,6 +136,7 @@ export type Database = {
           label: string;
           position: number;
           workspace: string;
+          workspace_id: string;
         };
         Insert: {
           base_status?: Database["public"]["Enums"]["lead_status"];
@@ -141,6 +148,7 @@ export type Database = {
           label: string;
           position?: number;
           workspace: string;
+          workspace_id: string;
         };
         Update: {
           base_status?: Database["public"]["Enums"]["lead_status"];
@@ -152,6 +160,7 @@ export type Database = {
           label?: string;
           position?: number;
           workspace?: string;
+          workspace_id?: string;
         };
         Relationships: [];
       };
@@ -175,6 +184,7 @@ export type Database = {
           status: Database["public"]["Enums"]["lead_status"];
           username: string;
           workspace: string;
+          workspace_id: string;
         };
         Insert: {
           created_at?: string;
@@ -195,6 +205,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"];
           username: string;
           workspace?: string;
+          workspace_id: string;
         };
         Update: {
           created_at?: string;
@@ -215,6 +226,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"];
           username?: string;
           workspace?: string;
+          workspace_id?: string;
         };
         Relationships: [
           {

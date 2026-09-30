@@ -107,7 +107,7 @@ try {
     owner.begin(async (tx) => {
       await tx.unsafe("SET LOCAL ROLE authenticated");
       await tx`select set_config('request.jwt.claim.sub',${actor},true)`;
-      return (await tx`select count(*)::int as n from public.leads where workspace=${w}`)[0]![
+      return (await tx`select count(*)::int as n from public.leads where workspace_id=${w}`)[0]![
         "n"
       ] as number;
     });
@@ -258,7 +258,7 @@ try {
     kind: "stage",
     targetStage: secondStage["key"] as string,
   })) as { id: string; total: number };
-  await owner`update public.leads set stage=${secondStage["key"] as string} where workspace=${w} and username='bulk_fixture_b'`;
+  await owner`update public.leads set stage=${secondStage["key"] as string} where workspace_id=${w} and username='bulk_fixture_b'`;
   if (!(await runBulkUnit())) throw new Error("Stage job not processed");
   const [finishedStage] =
     await owner`select state,done,skipped from private.bulk_jobs where id=${stageJob.id}`;

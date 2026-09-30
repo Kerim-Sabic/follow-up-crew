@@ -163,7 +163,7 @@ export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
   const { data, error } = await supabase
     .from("lead_stages")
     .select("*")
-    .eq("workspace", workspace)
+    .eq("workspace_id", workspace)
     .order("position", { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -185,7 +185,8 @@ export async function createStage(
   const { data, error } = await supabase
     .from("lead_stages")
     .insert({
-      workspace,
+      workspace: "docmesker",
+      workspace_id: workspace,
       key: stageKey(input.label),
       label: input.label.trim(),
       color: input.color,
@@ -219,7 +220,7 @@ export async function deleteStage(stage: Stage) {
   const { error: moveError } = await supabase
     .from("leads")
     .update({ stage: "not_contacted" })
-    .eq("workspace", stage.workspace)
+    .eq("workspace_id", stage.workspace_id)
     .eq("stage", stage.key);
   if (moveError) throw moveError;
   const { error } = await supabase.from("lead_stages").delete().eq("id", stage.id);
@@ -230,7 +231,7 @@ export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("leads")
     .select("*")
-    .eq("workspace", workspace)
+    .eq("workspace_id", workspace)
     .order("id")
     .limit(100);
   if (error) throw error;
@@ -277,7 +278,7 @@ async function nextNumber(workspace: Workspace) {
   const { data } = await supabase
     .from("leads")
     .select("number")
-    .eq("workspace", workspace)
+    .eq("workspace_id", workspace)
     .order("number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -296,7 +297,8 @@ export async function createLead(
     .from("leads")
     .insert({
       number: start,
-      workspace,
+      workspace: "docmesker",
+      workspace_id: workspace,
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
@@ -321,7 +323,8 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
     const username = input.username.trim().replace(/^@/, "");
     return {
       number: start + index,
-      workspace,
+      workspace: "docmesker",
+      workspace_id: workspace,
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
