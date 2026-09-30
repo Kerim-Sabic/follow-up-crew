@@ -49,7 +49,7 @@ DeepSeek HTTP is fixture-tested; Brave and Modash network retrieval are implemen
 
 ## Workspace migration continuation (2026-09-30)
 
-- Repository branch: `fix/workspace-expand-contract`, based on the inspected local `main`; no remote commit has been published yet.
+- Repository branch: `fix/workspace-expand-contract`, now includes current remote `main` history and is published at the remote branch; draft PR #1 is open.
 - Migration 0005 preserves the legacy `workspace` enum on leads/stages/email messages, backfills UUID `workspace_id` values, and leaves existing CRM policies in place for the expansion phase. Migrations 0006–0008 and application queries were updated to use UUID scope. New migration 0013 contains the separate RLS policy cutover; it is not applied to any remote database.
 - `npm test`: PASS, 13 tests. The legacy-seeded PostgreSQL test is PGlite/embedded fixture coverage, not a real PostgreSQL server or authenticated Supabase staging test. It preserves fixture leads and notes and checks UUID scoping, RLS, founder bootstrap, invitations, and revocation.
 - `npm run test:db`: PASS, 2 tests against the same embedded PostgreSQL fixture.

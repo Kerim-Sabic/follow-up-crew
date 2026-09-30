@@ -51,7 +51,6 @@ export function brokeredPreviewStorage() {
     new Promise((resolve) => {
       const requestId = newId();
       let done = false;
-      const timer = setTimeout(() => finish(null), TIMEOUT);
       const finish = (r: { ok: boolean; value?: string | null } | null) => {
         if (done) return;
         done = true;
@@ -59,6 +58,7 @@ export function brokeredPreviewStorage() {
         window.removeEventListener("message", onMessage);
         resolve(r);
       };
+      const timer = setTimeout(() => finish(null), TIMEOUT);
       const onMessage = (e: MessageEvent) => {
         if (editorOrigins.indexOf(e.origin) < 0) return;
         const d = e.data;
@@ -96,7 +96,12 @@ export function brokeredPreviewStorage() {
     },
     setItem: (key: string, value: string) => {
       localStorage.setItem(key, value);
-      return request("lovable-preview-auth:set", key, value).then(() => undefined);
+      return request("lovable-preview-auth:set", key, value).then((res) => {
+        if (res && res.ok && typeof res.value === "string" && localStorage.getItem(key) === value) {
+          if (res.value === "") localStorage.removeItem(key);
+          else localStorage.setItem(key, res.value);
+        }
+      });
     },
     removeItem: (key: string) => {
       localStorage.removeItem(key);
