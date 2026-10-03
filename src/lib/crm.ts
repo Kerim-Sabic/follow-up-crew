@@ -366,7 +366,7 @@ export async function claimLead(id: string, userId: string | null) {
 export async function addNote(leadId: string, authorId: string, body: string) {
   const { error } = await supabase
     .from("lead_notes")
-    .insert({ lead_id: leadId, author_id: authorId, body });
+    .insert({ lead_id: leadId, author_id: authorId, body } as never); // scope filled from the lead by the database
   if (error) throw error;
 }
 
