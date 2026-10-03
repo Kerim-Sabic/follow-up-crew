@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as ProposalRouteImport } from './routes/proposal'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
@@ -24,7 +23,6 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRepliesRouteImport } from './routes/_authenticated/replies'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
-import { Route as ApiBulkExportIdRouteImport } from './routes/api/bulk-export.$id'
 import { Route as OauthGoogleMailReturnRouteImport } from './routes/oauth/google-mail/return'
 
 const IndexRoute = IndexRouteImport.update({
@@ -39,11 +37,6 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProposalRoute = ProposalRouteImport.update({
-  id: '/proposal',
-  path: '/proposal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
@@ -101,11 +94,6 @@ const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ApiBulkExportIdRoute = ApiBulkExportIdRouteImport.update({
-  id: '/api/bulk-export/$id',
-  path: '/api/bulk-export/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OauthGoogleMailReturnRoute = OauthGoogleMailReturnRouteImport.update({
   id: '/oauth/google-mail/return',
   path: '/oauth/google-mail/return',
@@ -115,7 +103,6 @@ const OauthGoogleMailReturnRoute = OauthGoogleMailReturnRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/proposal': typeof ProposalRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
@@ -127,13 +114,11 @@ export interface FileRoutesByFullPath {
   '/replies': typeof AuthenticatedRepliesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
-  '/api/bulk-export/$id': typeof ApiBulkExportIdRoute
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/proposal': typeof ProposalRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
@@ -145,7 +130,6 @@ export interface FileRoutesByTo {
   '/replies': typeof AuthenticatedRepliesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
-  '/api/bulk-export/$id': typeof ApiBulkExportIdRoute
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRoutesById {
@@ -153,7 +137,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/proposal': typeof ProposalRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
@@ -165,7 +148,6 @@ export interface FileRoutesById {
   '/_authenticated/replies': typeof AuthenticatedRepliesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
-  '/api/bulk-export/$id': typeof ApiBulkExportIdRoute
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
 }
 export interface FileRouteTypes {
@@ -173,7 +155,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
-    | '/proposal'
     | '/analytics'
     | '/dashboard'
     | '/follow-ups'
@@ -185,13 +166,11 @@ export interface FileRouteTypes {
     | '/replies'
     | '/settings'
     | '/templates'
-    | '/api/bulk-export/$id'
     | '/oauth/google-mail/return'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/proposal'
     | '/analytics'
     | '/dashboard'
     | '/follow-ups'
@@ -203,14 +182,12 @@ export interface FileRouteTypes {
     | '/replies'
     | '/settings'
     | '/templates'
-    | '/api/bulk-export/$id'
     | '/oauth/google-mail/return'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
-    | '/proposal'
     | '/_authenticated/analytics'
     | '/_authenticated/dashboard'
     | '/_authenticated/follow-ups'
@@ -222,7 +199,6 @@ export interface FileRouteTypes {
     | '/_authenticated/replies'
     | '/_authenticated/settings'
     | '/_authenticated/templates'
-    | '/api/bulk-export/$id'
     | '/oauth/google-mail/return'
   fileRoutesById: FileRoutesById
 }
@@ -230,8 +206,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ProposalRoute: typeof ProposalRoute
-  ApiBulkExportIdRoute: typeof ApiBulkExportIdRoute
   OauthGoogleMailReturnRoute: typeof OauthGoogleMailReturnRoute
 }
 
@@ -256,13 +230,6 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/proposal': {
-      id: '/proposal'
-      path: '/proposal'
-      fullPath: '/proposal'
-      preLoaderRoute: typeof ProposalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/analytics': {
@@ -342,13 +309,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTemplatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/bulk-export/$id': {
-      id: '/api/bulk-export/$id'
-      path: '/api/bulk-export/$id'
-      fullPath: '/api/bulk-export/$id'
-      preLoaderRoute: typeof ApiBulkExportIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/oauth/google-mail/return': {
       id: '/oauth/google-mail/return'
       path: '/oauth/google-mail/return'
@@ -394,8 +354,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  ProposalRoute: ProposalRoute,
-  ApiBulkExportIdRoute: ApiBulkExportIdRoute,
   OauthGoogleMailReturnRoute: OauthGoogleMailReturnRoute,
 }
 export const routeTree = rootRouteImport

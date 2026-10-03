@@ -49,7 +49,7 @@ export function InboxPage() {
       const { data, error } = await supabase
         .from("email_messages")
         .select("*")
-        .eq("workspace_id" as never, workspace as never)
+        .eq("workspace", workspace)
         .eq("user_id", user!.id)
         .order("sent_at", { ascending: false })
         .limit(500);
@@ -124,8 +124,7 @@ export function InboxPage() {
       await queryClient.invalidateQueries({ queryKey: ["inbox"] });
       toast.success("Reply sent");
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Couldn't send that reply."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't send that reply."),
   });
 
   function openThreadAndRead(threadId: string) {
@@ -146,12 +145,7 @@ export function InboxPage() {
         title="Inbox"
         description="Everything you sent and every reply, in the mailbox you sent from."
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => refresh.mutate()}
-            disabled={refresh.isPending}
-          >
+          <Button size="sm" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
             {refresh.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}Check replies
           </Button>
         }
@@ -193,7 +187,7 @@ export function InboxPage() {
                   ? "Nothing matches that search."
                   : tab === "sent"
                     ? "Nothing sent from this mailbox yet. Send a batch from Templates."
-                    : 'No replies yet. Send a batch from Templates, then press "Check replies".'}
+                    : "No replies yet. Send a batch from Templates, then press \"Check replies\"."}
               </p>
             ) : (
               <ul className="max-h-[60vh] overflow-y-auto">
@@ -208,28 +202,17 @@ export function InboxPage() {
                       >
                         <span className="flex items-center gap-2">
                           {lead ? <LeadAvatar username={lead.username} size="sm" /> : null}
-                          {thread.unread ? (
-                            <span className="size-2 shrink-0 rounded-full bg-primary" />
-                          ) : null}
+                          {thread.unread ? <span className="size-2 shrink-0 rounded-full bg-primary" /> : null}
                           <span className="truncate text-[13px] font-medium">
-                            {lead?.full_name ||
-                              lead?.username ||
-                              thread.latest.to_email ||
-                              thread.lastIncoming?.from_email}
+                            {lead?.full_name || lead?.username || thread.latest.to_email || thread.lastIncoming?.from_email}
                           </span>
                           <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
                             {formatWhen(thread.latest.sent_at)}
                           </span>
                         </span>
                         <span className="mt-0.5 flex items-center gap-1.5">
-                          <span
-                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${thread.hasReply ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground"}`}
-                          >
-                            {thread.hasReply
-                              ? `${thread.replyCount} repl${thread.replyCount === 1 ? "y" : "ies"}`
-                              : thread.latest.direction === "out"
-                                ? "Sent"
-                                : "Received"}
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${thread.hasReply ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground"}`}>
+                            {thread.hasReply ? `${thread.replyCount} repl${thread.replyCount === 1 ? "y" : "ies"}` : thread.latest.direction === "out" ? "Sent" : "Received"}
                           </span>
                           <span className="truncate text-xs text-muted-foreground">
                             {thread.lastIncoming?.snippet || thread.latest.subject}
@@ -250,9 +233,7 @@ export function InboxPage() {
               <>
                 <h2 className="text-sm font-semibold">{active.latest.subject}</h2>
                 <p className="text-xs text-muted-foreground">
-                  {leadOf(active.latest.lead_id)?.email ??
-                    active.latest.to_email ??
-                    active.lastIncoming?.from_email}
+                  {leadOf(active.latest.lead_id)?.email ?? active.latest.to_email ?? active.lastIncoming?.from_email}
                   {" · "}
                   {active.sentCount} sent · {active.replyCount} received
                 </p>
@@ -263,14 +244,10 @@ export function InboxPage() {
                       className={`rounded-md border p-3 text-sm ${message.direction === "in" ? "border-border bg-secondary/40" : "border-dashed border-border"}`}
                     >
                       <p className="mb-1 text-[11px] text-muted-foreground">
-                        {message.direction === "in"
-                          ? message.from_email
-                          : `You · ${message.from_email}`}{" "}
-                        · {formatWhen(message.sent_at)}
+                        {message.direction === "in" ? message.from_email : `You · ${message.from_email}`} ·{" "}
+                        {formatWhen(message.sent_at)}
                       </p>
-                      <p className="whitespace-pre-wrap text-[13px]">
-                        {message.body || message.snippet}
-                      </p>
+                      <p className="whitespace-pre-wrap text-[13px]">{message.body || message.snippet}</p>
                     </article>
                   ))}
                 </div>
@@ -279,11 +256,7 @@ export function InboxPage() {
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     rows={4}
-                    placeholder={
-                      active.lastIncoming
-                        ? "Write your reply…"
-                        : "They haven't replied yet — nothing to reply to in this thread."
-                    }
+                    placeholder={active.lastIncoming ? "Write your reply…" : "They haven't replied yet — nothing to reply to in this thread."}
                     disabled={!active.lastIncoming}
                     className="w-full rounded-md border border-input bg-card p-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                   />
@@ -305,8 +278,7 @@ export function InboxPage() {
 
       {connected.length === 0 ? (
         <p className="flex items-center gap-2 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-          <Mail className="size-4" />
-          Connect a mailbox above to send outreach and collect replies here.
+          <Mail className="size-4" />Connect a mailbox above to send outreach and collect replies here.
         </p>
       ) : null}
     </div>

@@ -1,20 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  fetchLeads,
-  fetchProfiles,
-  fetchStages,
-  setQualityContext,
-  setStatusRegistry,
-  toStageMeta,
-  type Lead,
-  type Profile,
-  type Stage,
-  type StageMeta,
-  type Workspace,
-} from "@/lib/crm";
-import { readWorkspaces } from "./creator-api";
+import { fetchLeads, fetchProfiles, fetchStages, setQualityContext, setStatusRegistry, toStageMeta, WORKSPACES, type Lead, type Profile, type Stage, type StageMeta, type Workspace } from "@/lib/crm";
 
 const STORAGE_KEY = "crm.workspace";
 
@@ -22,7 +9,6 @@ type WorkspaceValue = {
   workspace: Workspace;
   setWorkspace: (workspace: Workspace) => void;
   workspaceLabel: string;
-  workspaces: { value: string; label: string; description: string }[];
   leads: Lead[];
   profiles: Profile[];
   stages: StageMeta[];
@@ -45,65 +31,33 @@ const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
 export function WorkspaceProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [workspace, setWorkspaceState] = useState<Workspace>("");
-  const workspaceQuery = useQuery({
-    queryKey: ["workspaces", userId],
-    queryFn: readWorkspaces,
-    staleTime: 0,
-    refetchInterval: 30_000,
-  });
-  const workspaces = useMemo(
-    () =>
-      (workspaceQuery.data ?? []).map((w) => ({ value: w.id, label: w.name, description: w.kind })),
-    [workspaceQuery.data],
-  );
-  // Legacy screens use a bounded working set; Leads uses server pagination.
+  const [workspace, setWorkspaceState] = useState<Workspace>("docmesker");
+  // Leads are thousands of rows: keep them cached so moving between pages and
+  // workspaces is instant, and let realtime decide when to refetch.
   const leadsQuery = useQuery({
-    queryKey: ["leads", userId, workspace],
-    enabled: Boolean(workspace),
+    queryKey: ["leads", workspace],
     queryFn: () => fetchLeads(workspace),
     staleTime: 5 * 60_000,
     gcTime: 60 * 60_000,
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    refetchOnMount: false,
   });
-  const profilesQuery = useQuery({
-    queryKey: ["profiles", userId, workspace],
-    queryFn: () => fetchProfiles(workspace),
-    enabled: Boolean(workspace),
-    staleTime: 30_000,
-  });
-  const stagesQuery = useQuery({
-    queryKey: ["lead-stages", userId, workspace],
-    queryFn: () => fetchStages(workspace),
-    enabled: Boolean(workspace),
-    staleTime: 30_000,
-  });
+  const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: fetchProfiles, staleTime: 10 * 60_000, refetchOnWindowFocus: false });
+  const stagesQuery = useQuery({ queryKey: ["lead-stages", workspace], queryFn: () => fetchStages(workspace), staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [activeLeadSnapshot, setActiveLead] = useState<Lead | null>(null);
 
   useEffect(() => {
-    if (!workspaceQuery.data) return;
-    const stored = window.localStorage.getItem(`${STORAGE_KEY}.${userId}`);
-    const next = workspaces.some((w) => w.value === workspace)
-      ? workspace
-      : (workspaces.find((w) => w.value === stored)?.value ?? workspaces[0]?.value ?? "");
-    if (next !== workspace) {
-      setWorkspaceState(next);
-      setActiveLead(null);
-    }
-  }, [workspaceQuery.data, workspaces, userId, workspace]);
+    const stored = window.localStorage.getItem(STORAGE_KEY) as Workspace | null;
+    if (stored && WORKSPACES.some((item) => item.value === stored)) setWorkspaceState(stored);
+  }, []);
 
   function setWorkspace(next: Workspace) {
-    if (!workspaces.some((w) => w.value === next)) return;
-    queryClient.removeQueries({
-      predicate: (q) => !["workspaces"].includes(String(q.queryKey[0])),
-    });
     setWorkspaceState(next);
     setActiveLead(null);
-    window.localStorage.setItem(`${STORAGE_KEY}.${userId}`, next);
+    window.localStorage.setItem(STORAGE_KEY, next);
   }
 
   useEffect(() => {
@@ -111,18 +65,11 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
     let leadsTimer: ReturnType<typeof setTimeout> | undefined;
     const refetchLeads = () => {
       if (leadsTimer) clearTimeout(leadsTimer);
-      leadsTimer = setTimeout(() => {
-        for (const key of ["leads", "lead-page", "lead-counts"])
-          void queryClient.invalidateQueries({ queryKey: [key] });
-      }, 1500);
+      leadsTimer = setTimeout(() => queryClient.invalidateQueries({ queryKey: ["leads"] }), 1500);
     };
     const channel = supabase
-      .channel(`crm-live:${userId}:${workspace}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "leads", filter: `workspace_id=eq.${workspace}` },
-        refetchLeads,
-      )
+      .channel("crm-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, refetchLeads)
       .on("postgres_changes", { event: "*", schema: "public", table: "lead_notes" }, () => {
         queryClient.invalidateQueries({ queryKey: ["lead-notes"] });
       })
@@ -137,7 +84,7 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
       if (leadsTimer) clearTimeout(leadsTimer);
       void supabase.removeChannel(channel);
     };
-  }, [queryClient, userId, workspace]);
+  }, [queryClient]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -161,82 +108,33 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
     if (!activeLeadSnapshot) return null;
     return leads.find((lead) => lead.id === activeLeadSnapshot.id) ?? activeLeadSnapshot;
   }, [activeLeadSnapshot, leads]);
-  const value = useMemo<WorkspaceValue>(
-    () => ({
-      workspace,
-      setWorkspace,
-      workspaceLabel: workspaces.find((item) => item.value === workspace)?.label ?? "Workspace",
-      workspaces,
-      leads,
-      profiles,
-      stages,
-      rawStages,
-      stageMeta: (key: string) =>
-        stages.find((item) => item.value === key) ??
-        stages[0] ?? {
-          value: key,
-          label: key,
-          color: "slate",
-          className: "bg-slate-500/12 text-slate-600",
-          dot: "bg-slate-500",
-          isBuiltin: true,
-        },
-      manageStagesOpen,
-      setManageStagesOpen,
-      isLoading: leadsQuery.isLoading || profilesQuery.isLoading,
-      error: (workspaceQuery.error ?? leadsQuery.error ?? profilesQuery.error) as Error | null,
-      ownerName: (id) => {
-        if (!id) return "Unassigned";
-        if (id === userId) return "You";
-        return profiles.find((profile) => profile.id === id)?.display_name ?? "Teammate";
-      },
-      addLeadOpen,
-      setAddLeadOpen,
-      commandOpen,
-      setCommandOpen,
-      activeLead,
-      setActiveLead,
-    }),
-    [
-      activeLead,
-      addLeadOpen,
-      commandOpen,
-      manageStagesOpen,
-      stages,
-      rawStages,
-      leads,
-      leadsQuery.error,
-      leadsQuery.isLoading,
-      profiles,
-      profilesQuery.error,
-      profilesQuery.isLoading,
-      userId,
-      workspace,
-      workspaces,
-      workspaceQuery.error,
-    ],
-  );
+  const value = useMemo<WorkspaceValue>(() => ({
+    workspace,
+    setWorkspace,
+    workspaceLabel: WORKSPACES.find((item) => item.value === workspace)?.label ?? "Workspace",
+    leads,
+    profiles,
+    stages,
+    rawStages,
+    stageMeta: (key: string) => stages.find((item) => item.value === key) ?? stages[0] ?? { value: key, label: key, color: "slate", className: "bg-slate-500/12 text-slate-600", dot: "bg-slate-500", isBuiltin: true },
+    manageStagesOpen,
+    setManageStagesOpen,
+    isLoading: leadsQuery.isLoading || profilesQuery.isLoading,
+    error: (leadsQuery.error ?? profilesQuery.error) as Error | null,
+    ownerName: (id) => {
+      if (!id) return "Unassigned";
+      if (id === userId) return "You";
+      return profiles.find((profile) => profile.id === id)?.display_name ?? "Teammate";
+    },
+    addLeadOpen,
+    setAddLeadOpen,
+    commandOpen,
+    setCommandOpen,
+    activeLead,
+    setActiveLead,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [activeLead, addLeadOpen, commandOpen, manageStagesOpen, stages, rawStages, leads, leadsQuery.error, leadsQuery.isLoading, profiles, profilesQuery.error, profilesQuery.isLoading, userId, workspace]);
 
-  if (workspaceQuery.isLoading)
-    return (
-      <p className="p-8" role="status">
-        Loading your private workspaces…
-      </p>
-    );
-  if (workspaceQuery.error)
-    return (
-      <p className="p-8" role="alert">
-        {workspaceQuery.error.message}
-      </p>
-    );
-  if (!workspaceQuery.data?.length)
-    return (
-      <p className="p-8">
-        Verify your email to provision your private workspace. If already verified, apply the
-        trust-foundation migration.
-      </p>
-    );
-  if (!workspace) return <p className="p-8">Selecting workspace…</p>;
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 

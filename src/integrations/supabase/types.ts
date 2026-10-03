@@ -14,59 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      audit_events: {
-        Row: {
-          action: string
-          actor: string | null
-          created_at: string
-          id: string
-          resource_id: string | null
-          workspace: string | null
-        }
-        Insert: {
-          action: string
-          actor?: string | null
-          created_at?: string
-          id?: string
-          resource_id?: string | null
-          workspace?: string | null
-        }
-        Update: {
-          action?: string
-          actor?: string | null
-          created_at?: string
-          id?: string
-          resource_id?: string | null
-          workspace?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "audit_events_workspace_fkey"
-            columns: ["workspace"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      developer_entitlements: {
-        Row: {
-          created_at: string
-          user_id: string
-          verified_email: string
-        }
-        Insert: {
-          created_at?: string
-          user_id: string
-          verified_email: string
-        }
-        Update: {
-          created_at?: string
-          user_id?: string
-          verified_email?: string
-        }
-        Relationships: []
-      }
       email_messages: {
         Row: {
           body: string | null
@@ -85,7 +32,6 @@ export type Database = {
           to_email: string | null
           user_id: string | null
           workspace: Database["public"]["Enums"]["workspace_key"]
-          workspace_id: string
         }
         Insert: {
           body?: string | null
@@ -104,7 +50,6 @@ export type Database = {
           to_email?: string | null
           user_id?: string | null
           workspace?: Database["public"]["Enums"]["workspace_key"]
-          workspace_id: string
         }
         Update: {
           body?: string | null
@@ -123,16 +68,8 @@ export type Database = {
           to_email?: string | null
           user_id?: string | null
           workspace?: Database["public"]["Enums"]["workspace_key"]
-          workspace_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "email_lead_scope"
-            columns: ["workspace_id", "lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["workspace_id", "id"]
-          },
           {
             foreignKeyName: "email_messages_lead_id_fkey"
             columns: ["lead_id"]
@@ -147,13 +84,6 @@ export type Database = {
             referencedRelation: "mail_accounts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "email_messages_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
         ]
       }
       lead_notes: {
@@ -163,7 +93,6 @@ export type Database = {
           created_at: string
           id: string
           lead_id: string
-          workspace_id: string
         }
         Insert: {
           author_id: string
@@ -171,7 +100,6 @@ export type Database = {
           created_at?: string
           id?: string
           lead_id: string
-          workspace_id: string
         }
         Update: {
           author_id?: string
@@ -179,7 +107,6 @@ export type Database = {
           created_at?: string
           id?: string
           lead_id?: string
-          workspace_id?: string
         }
         Relationships: [
           {
@@ -196,20 +123,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "lead_notes_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_lead_scope"
-            columns: ["workspace_id", "lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["workspace_id", "id"]
-          },
         ]
       }
       lead_stages: {
@@ -223,7 +136,6 @@ export type Database = {
           label: string
           position: number
           workspace: Database["public"]["Enums"]["workspace_key"]
-          workspace_id: string
         }
         Insert: {
           base_status?: Database["public"]["Enums"]["lead_status"]
@@ -235,7 +147,6 @@ export type Database = {
           label: string
           position?: number
           workspace: Database["public"]["Enums"]["workspace_key"]
-          workspace_id: string
         }
         Update: {
           base_status?: Database["public"]["Enums"]["lead_status"]
@@ -247,17 +158,8 @@ export type Database = {
           label?: string
           position?: number
           workspace?: Database["public"]["Enums"]["workspace_key"]
-          workspace_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "lead_stages_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       leads: {
         Row: {
@@ -279,7 +181,6 @@ export type Database = {
           status: Database["public"]["Enums"]["lead_status"]
           username: string
           workspace: Database["public"]["Enums"]["workspace_key"]
-          workspace_id: string
         }
         Insert: {
           created_at?: string
@@ -300,7 +201,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"]
           username: string
           workspace?: Database["public"]["Enums"]["workspace_key"]
-          workspace_id: string
         }
         Update: {
           created_at?: string
@@ -321,7 +221,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"]
           username?: string
           workspace?: Database["public"]["Enums"]["workspace_key"]
-          workspace_id?: string
         }
         Relationships: [
           {
@@ -336,13 +235,6 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -407,133 +299,12 @@ export type Database = {
         }
         Relationships: []
       }
-      workspace_invitations: {
-        Row: {
-          accepted_by: string | null
-          created_at: string
-          email: string
-          expires_at: string
-          id: string
-          invited_by: string
-          revoked_at: string | null
-          role: string
-          token_hash: string
-          workspace: string
-        }
-        Insert: {
-          accepted_by?: string | null
-          created_at?: string
-          email: string
-          expires_at: string
-          id?: string
-          invited_by: string
-          revoked_at?: string | null
-          role: string
-          token_hash: string
-          workspace: string
-        }
-        Update: {
-          accepted_by?: string | null
-          created_at?: string
-          email?: string
-          expires_at?: string
-          id?: string
-          invited_by?: string
-          revoked_at?: string | null
-          role?: string
-          token_hash?: string
-          workspace?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspace_invitations_workspace_fkey"
-            columns: ["workspace"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workspace_members: {
-        Row: {
-          protected_founder: boolean
-          role: string
-          user_id: string
-          workspace: string
-        }
-        Insert: {
-          protected_founder?: boolean
-          role: string
-          user_id: string
-          workspace: string
-        }
-        Update: {
-          protected_founder?: boolean
-          role?: string
-          user_id?: string
-          workspace?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspace_members_workspace_fkey"
-            columns: ["workspace"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workspaces: {
-        Row: {
-          complimentary: boolean
-          created_at: string
-          id: string
-          kind: string
-          name: string
-          personal_user_id: string | null
-          research_enabled: boolean
-          sending_enabled: boolean
-          timezone: string
-        }
-        Insert: {
-          complimentary?: boolean
-          created_at?: string
-          id?: string
-          kind: string
-          name: string
-          personal_user_id?: string | null
-          research_enabled?: boolean
-          sending_enabled?: boolean
-          timezone?: string
-        }
-        Update: {
-          complimentary?: boolean
-          created_at?: string
-          id?: string
-          kind?: string
-          name?: string
-          personal_user_id?: string | null
-          research_enabled?: boolean
-          sending_enabled?: boolean
-          timezone?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      accept_workspace_invitation: { Args: { h: string }; Returns: string }
-      create_workspace_invitation: {
-        Args: { em: string; h: string; r: string; w: string }
-        Returns: string
-      }
-      manage_workspace_member: {
-        Args: { r: string; uid: string; w: string }
-        Returns: undefined
-      }
-      revoke_workspace_invitation: { Args: { i: string }; Returns: undefined }
+      [_ in never]: never
     }
     Enums: {
       lead_status: "not_contacted" | "contacted" | "replied" | "deal" | "dead"

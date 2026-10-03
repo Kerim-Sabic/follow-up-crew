@@ -50,8 +50,7 @@ export async function authorizeAppUserOAuth(
   });
 
   const text = await res.text();
-  if (!res.ok)
-    throw new Error(`App User OAuth start failed (${res.status}): ${text || res.statusText}`);
+  if (!res.ok) throw new Error(`App User OAuth start failed (${res.status}): ${text || res.statusText}`);
 
   let body: { authorization_url?: string; session_id?: string };
   try {
@@ -59,8 +58,7 @@ export async function authorizeAppUserOAuth(
   } catch {
     throw new Error(`App User OAuth start returned invalid JSON: ${text.slice(0, 200)}`);
   }
-  if (!body.authorization_url)
-    throw new Error("App User OAuth start response missing authorization_url");
+  if (!body.authorization_url) throw new Error("App User OAuth start response missing authorization_url");
   return { authorizationUrl: body.authorization_url, sessionId: body.session_id ?? "" };
 }
 
@@ -92,10 +90,7 @@ export async function callAsAppUser({
 /** A gateway 401 whose body type starts with "credential_" means re-authorization is needed. */
 export async function appUserReconnectRequired(res: Response): Promise<boolean> {
   if (res.status !== 401) return false;
-  const body = (await res
-    .clone()
-    .json()
-    .catch(() => null)) as { type?: unknown } | null;
+  const body = (await res.clone().json().catch(() => null)) as { type?: unknown } | null;
   return typeof body?.type === "string" && body.type.startsWith("credential_");
 }
 
@@ -118,8 +113,7 @@ export async function disconnectAppUser({
     body: JSON.stringify({ connector_id: connectorId }),
   });
   const text = await res.text();
-  if (!res.ok)
-    throw new Error(`App User disconnect failed (${res.status}): ${text || res.statusText}`);
+  if (!res.ok) throw new Error(`App User disconnect failed (${res.status}): ${text || res.statusText}`);
 }
 
 export interface ExchangeAppUserOAuthCodeResult {
@@ -137,8 +131,7 @@ export async function exchangeAppUserOAuthCode(
     body: JSON.stringify({ code }),
   });
   const text = await res.text();
-  if (!res.ok)
-    throw new Error(`App User OAuth exchange failed (${res.status}): ${text || res.statusText}`);
+  if (!res.ok) throw new Error(`App User OAuth exchange failed (${res.status}): ${text || res.statusText}`);
   let body: { api_key?: string; connector_id?: string };
   try {
     body = text ? JSON.parse(text) : {};

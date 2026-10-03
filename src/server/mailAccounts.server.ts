@@ -23,21 +23,6 @@ export type MailAccountRow = {
   last_synced_at: string | null;
   created_at: string;
 };
-type GmailPart = {
-  mimeType?: string;
-  body?: { data?: string };
-  headers?: { name: string; value: string }[];
-  parts?: GmailPart[];
-};
-export type GmailResponse = {
-  id?: string;
-  threadId?: string;
-  emailAddress?: string;
-  messages?: GmailResponse[];
-  payload?: GmailPart;
-  snippet?: string;
-  internalDate?: string;
-};
 
 export async function listAccounts(userId: string): Promise<MailAccountRow[]> {
   const { data, error } = await supabaseAdmin
@@ -122,17 +107,16 @@ export async function gmail(account: MailAccountRow, path: string, init?: Reques
     throw new Error("RECONNECT_REQUIRED");
   }
   if (!res.ok) {
-    console.error(`Gmail provider request failed (${res.status})`);
-    throw new Error(
-      `Gmail request failed (${res.status}); check provider connection and permissions.`,
-    );
+    const body = await res.text();
+    console.error(`Gmail call failed [${res.status}] ${path}: ${body}`);
+    throw new Error(`Gmail request failed (${res.status}): ${body.slice(0, 300)}`);
   }
-  return res.json() as Promise<GmailResponse>;
+  return res.json() as Promise<any>;
 }
 
-const b64 = (s: string) => Buffer.from(new TextEncoder().encode(s)).toString("base64");
-const headerValue = (v: string) =>
-  Array.from(v).every((character) => character.charCodeAt(0) <= 127) ? v : `=?UTF-8?B?${b64(v)}?=`;
+const b64 = (s: string) =>
+  Buffer.from(new TextEncoder().encode(s)).toString("base64");
+const headerValue = (v: string) => (/^[\x00-\x7F]*$/.test(v) ? v : `=?UTF-8?B?${b64(v)}?=`);
 
 export function buildRawEmail(opts: {
   to: string;
@@ -143,16 +127,6 @@ export function buildRawEmail(opts: {
   inReplyTo?: string | null;
   references?: string | null;
 }) {
-  for (const value of [
-    opts.to,
-    opts.from,
-    opts.fromName,
-    opts.subject,
-    opts.inReplyTo,
-    opts.references,
-  ]) {
-    if (value && /[\r\n]/.test(value)) throw new Error("Email headers cannot contain line breaks");
-  }
   const lines = [`To: ${opts.to}`];
   if (opts.from) {
     lines.push(
@@ -160,26 +134,22 @@ export function buildRawEmail(opts: {
     );
   }
   lines.push(`Subject: ${headerValue(opts.subject)}`);
-  if (opts.inReplyTo)
-    lines.push(
-      `In-Reply-To: ${opts.inReplyTo}`,
-      `References: ${opts.references ?? opts.inReplyTo}`,
-    );
+  if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`, `References: ${opts.references ?? opts.inReplyTo}`);
   lines.push("MIME-Version: 1.0", 'Content-Type: text/plain; charset="UTF-8"', "", opts.body);
   return b64(lines.join("\r\n")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export function headerOf(message: GmailResponse, name: string): string {
+export function headerOf(message: any, name: string): string {
   const headers = message?.payload?.headers ?? [];
-  const found = headers.find((h) => h.name.toLowerCase() === name.toLowerCase());
+  const found = headers.find((h: any) => String(h.name).toLowerCase() === name.toLowerCase());
   return found?.value ?? "";
 }
 
 /** Extracts a readable plain-text body from a Gmail message payload. */
-export function plainTextOf(message: GmailResponse): string {
+export function plainTextOf(message: any): string {
   const decode = (data: string) =>
     Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
-  const walk = (part: GmailPart | undefined): string => {
+  const walk = (part: any): string => {
     if (!part) return "";
     if (part.mimeType === "text/plain" && part.body?.data) return decode(part.body.data);
     for (const child of part.parts ?? []) {

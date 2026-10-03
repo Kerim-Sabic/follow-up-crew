@@ -34,9 +34,7 @@ export function LeadBoard({
               event.preventDefault();
               setDragOver(status.value);
             }}
-            onDragLeave={() =>
-              setDragOver((current) => (current === status.value ? null : current))
-            }
+            onDragLeave={() => setDragOver((current) => (current === status.value ? null : current))}
             onDrop={(event) => {
               event.preventDefault();
               setDragOver(null);
@@ -60,53 +58,18 @@ export function LeadBoard({
 
             <div className="flex-1 space-y-2 overflow-auto p-2">
               {columnLeads.slice(0, VISIBLE).map((lead) => (
-                <article
+                 <article
                   key={lead.id}
                   draggable
                   onDragStart={(event) => event.dataTransfer.setData("text/plain", lead.id)}
                   onClick={() => onOpen(lead)}
-                  className="cursor-grab rounded-lg border border-border bg-card px-3 py-3 shadow-sm transition-colors hover:border-input active:cursor-grabbing"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onOpen(lead);
-                  }}
+                   className="cursor-grab rounded-lg border border-border bg-card px-3 py-3 shadow-sm transition-colors hover:border-input active:cursor-grabbing"
+                   tabIndex={0}
+                   onKeyDown={(event) => { if (event.key === "Enter") onOpen(lead); }}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <LeadAvatar username={lead.username} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-foreground">
-                        @{lead.username.replace(/^@/, "")}
-                      </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {lead.email ?? "Instagram"}
-                      </p>
-                    </div>
-                    <a
-                      href={instagramUrl(lead)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open Instagram"
-                      onClick={(event) => event.stopPropagation()}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    >
-                      <Instagram className="size-4" />
-                    </a>
-                  </div>
-                  <div
-                    className="mt-3 flex items-center justify-between gap-2"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <StatusSelect
-                      value={leadStage(lead)}
-                      onChange={(next) => onStatusChange([lead.id], next)}
-                    />
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatWhen(lead.last_touched_at)}
-                    </span>
-                  </div>
-                  <p className="mt-2 truncate border-t border-border pt-2 text-[11px] text-muted-foreground">
-                    {ownerName(lead.owner_id)}
-                  </p>
+                   <div className="flex items-center gap-2.5"><LeadAvatar username={lead.username} size="sm" /><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-foreground">@{lead.username.replace(/^@/, "")}</p><p className="truncate text-[11px] text-muted-foreground">{lead.email ?? "Instagram"}</p></div><a href={instagramUrl(lead)} target="_blank" rel="noopener noreferrer" title="Open Instagram" onClick={(event) => event.stopPropagation()} className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"><Instagram className="size-4" /></a></div>
+                   <div className="mt-3 flex items-center justify-between gap-2" onClick={(event) => event.stopPropagation()}><StatusSelect value={leadStage(lead)} onChange={(next) => onStatusChange([lead.id], next)} /><span className="text-[11px] text-muted-foreground">{formatWhen(lead.last_touched_at)}</span></div>
+                   <p className="mt-2 truncate border-t border-border pt-2 text-[11px] text-muted-foreground">{ownerName(lead.owner_id)}</p>
                 </article>
               ))}
               {columnLeads.length > VISIBLE ? (

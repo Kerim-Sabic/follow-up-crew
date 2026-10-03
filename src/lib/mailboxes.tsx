@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { useAuth } from "./auth";
 import {
   completeMailboxConnect,
   disconnectMailbox,
@@ -26,11 +25,7 @@ export function rememberMailbox(id: string) {
 
 function waitForOAuth(popup: Window) {
   return new Promise<string | null>((resolve, reject) => {
-    const poll = window.setInterval(() => {
-      if (!popup.closed) return;
-      cleanup();
-      reject(new Error("The Google window closed before the mailbox was connected."));
-    }, 500);
+    let poll: number | undefined;
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
       if (poll !== undefined) window.clearInterval(poll);
@@ -53,11 +48,15 @@ function waitForOAuth(popup: Window) {
       reject(new Error("Google did not finish connecting the mailbox."));
     };
     window.addEventListener("message", onMessage);
+    poll = window.setInterval(() => {
+      if (!popup.closed) return;
+      cleanup();
+      reject(new Error("The Google window closed before the mailbox was connected."));
+    }, 500);
   });
 }
 
 export function useMailboxes() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const fetchMailboxes = useServerFn(listMailboxes);
   const start = useServerFn(startMailboxConnect);
@@ -66,7 +65,7 @@ export function useMailboxes() {
   const sync = useServerFn(syncMailboxes);
 
   const query = useQuery<Mailbox[]>({
-    queryKey: [...MAILBOX_KEY, user?.id],
+    queryKey: MAILBOX_KEY,
     queryFn: () => fetchMailboxes(),
     staleTime: 30_000,
   });
@@ -94,8 +93,7 @@ export function useMailboxes() {
       await queryClient.invalidateQueries({ queryKey: MAILBOX_KEY });
       toast.success(result?.email ? `${result.email} connected` : "Mailbox connected");
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Couldn't connect that mailbox."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't connect that mailbox."),
   });
 
   const disconnect = useMutation({
@@ -104,8 +102,7 @@ export function useMailboxes() {
       await queryClient.invalidateQueries({ queryKey: MAILBOX_KEY });
       toast.success("Mailbox removed");
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Couldn't remove that mailbox."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't remove that mailbox."),
   });
 
   const refresh = useMutation({
@@ -116,14 +113,9 @@ export function useMailboxes() {
         queryClient.invalidateQueries({ queryKey: MAILBOX_KEY }),
         queryClient.invalidateQueries({ queryKey: ["leads"] }),
       ]);
-      toast.success(
-        result.newReplies
-          ? `${result.newReplies} new repl${result.newReplies === 1 ? "y" : "ies"}`
-          : "No new replies",
-      );
+      toast.success(result.newReplies ? `${result.newReplies} new repl${result.newReplies === 1 ? "y" : "ies"}` : "No new replies");
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Couldn't check for replies."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't check for replies."),
   });
 
   const connected = (query.data ?? []).filter((box) => box.connected && !box.reconnectRequired);

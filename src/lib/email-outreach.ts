@@ -12,34 +12,19 @@ export type SenderSettings = {
 const SENDER_KEY = "crm.sender";
 const EMAILED_KEY = "crm.emailed-today";
 
-export const DEFAULT_SENDER: SenderSettings = {
-  name: "",
-  email: "",
-  client: "default",
-  signature: "",
-};
+export const DEFAULT_SENDER: SenderSettings = { name: "", email: "", client: "default", signature: "" };
 
 export const MAIL_CLIENTS: { value: MailClient; label: string; hint: string }[] = [
-  {
-    value: "default",
-    label: "My mail app",
-    hint: "Opens Apple Mail, Outlook desktop or whatever handles email on this computer.",
-  },
+  { value: "default", label: "My mail app", hint: "Opens Apple Mail, Outlook desktop or whatever handles email on this computer." },
   { value: "gmail", label: "Gmail in browser", hint: "Opens a Gmail compose window in a new tab." },
-  {
-    value: "outlook",
-    label: "Outlook on the web",
-    hint: "Opens an Outlook compose window in a new tab.",
-  },
+  { value: "outlook", label: "Outlook on the web", hint: "Opens an Outlook compose window in a new tab." },
 ];
 
 export function loadSender(): SenderSettings {
   if (typeof window === "undefined") return DEFAULT_SENDER;
   try {
     const raw = window.localStorage.getItem(SENDER_KEY);
-    return raw
-      ? { ...DEFAULT_SENDER, ...(JSON.parse(raw) as Partial<SenderSettings>) }
-      : DEFAULT_SENDER;
+    return raw ? { ...DEFAULT_SENDER, ...(JSON.parse(raw) as Partial<SenderSettings>) } : DEFAULT_SENDER;
   } catch {
     return DEFAULT_SENDER;
   }
@@ -64,10 +49,7 @@ export function emailedToday(): string[] {
 
 export function rememberEmailed(ids: string[]) {
   const merged = Array.from(new Set([...emailedToday(), ...ids])).slice(-1000);
-  window.localStorage.setItem(
-    EMAILED_KEY,
-    JSON.stringify({ date: new Date().toDateString(), ids: merged }),
-  );
+  window.localStorage.setItem(EMAILED_KEY, JSON.stringify({ date: new Date().toDateString(), ids: merged }));
 }
 
 export const TOKENS: { token: string; label: string }[] = [
@@ -86,10 +68,7 @@ function titleCase(value: string) {
 export function leadFirstName(lead: Pick<Lead, "full_name" | "username">) {
   const full = (lead.full_name ?? "").trim();
   if (full) return titleCase(full.split(/\s+/)[0] ?? full);
-  const handle = lead.username
-    .replace(/^@/, "")
-    .replace(/[._\-0-9]+/g, " ")
-    .trim();
+  const handle = lead.username.replace(/^@/, "").replace(/[._\-0-9]+/g, " ").trim();
   const first = handle.split(/\s+/)[0] ?? handle;
   return first ? titleCase(first) : "there";
 }
@@ -109,10 +88,7 @@ export function personalize(
     sender_name: senderName,
   };
   return text
-    .replace(
-      /\{\{\s*([a-z_]+)\s*\}\}/gi,
-      (match, key: string) => values[key.toLowerCase()] ?? match,
-    )
+    .replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key: string) => values[key.toLowerCase()] ?? match)
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .trimStart();
 }
@@ -158,24 +134,10 @@ export function hasEmail(lead: Lead) {
 
 export type EmailCheck = { ok: boolean; label: string; hint: string };
 
-const SPAM_WORDS = [
-  "guarantee",
-  "free",
-  "risk-free",
-  "buy now",
-  "limited time",
-  "act now",
-  "100%",
-  "cheap",
-  "click here",
-  "offer expires",
-];
+const SPAM_WORDS = ["guarantee", "free", "risk-free", "buy now", "limited time", "act now", "100%", "cheap", "click here", "offer expires"];
 
 /** Honest heuristics from cold-email best practice — no fake predictions. */
-export function analyzeEmail(
-  subject: string,
-  body: string,
-): { checks: EmailCheck[]; score: number } {
+export function analyzeEmail(subject: string, body: string): { checks: EmailCheck[]; score: number } {
   const words = body.trim().split(/\s+/).filter(Boolean).length;
   const subjectWords = subject.trim().split(/\s+/).filter(Boolean).length;
   const lower = `${subject} ${body}`.toLowerCase();
@@ -184,41 +146,13 @@ export function analyzeEmail(
   const questions = (body.match(/\?/g) ?? []).length;
 
   const checks: EmailCheck[] = [
-    {
-      ok: words >= 40 && words <= 140,
-      label: `${words} words`,
-      hint: "Short emails get the most replies — aim for 40–140 words.",
-    },
-    {
-      ok: subjectWords > 0 && subjectWords <= 5,
-      label: `Subject: ${subjectWords} words`,
-      hint: "Keep subjects to 5 words or fewer so they survive mobile inboxes.",
-    },
-    {
-      ok: /\{\{\s*(first_name|full_name|username|niche)\s*\}\}/i.test(body),
-      label: "Personalised",
-      hint: "Use a token like {{first_name}} or {{niche}} so each email feels written for them.",
-    },
-    {
-      ok: questions >= 1,
-      label: questions ? `${questions} question${questions === 1 ? "" : "s"}` : "No question",
-      hint: "End with one easy question — a clear ask is the biggest reply driver.",
-    },
-    {
-      ok: links === 0,
-      label: links ? `${links} link${links === 1 ? "" : "s"}` : "No links",
-      hint: "Links in a first email hurt deliverability. Save them for the reply.",
-    },
-    {
-      ok: spam.length === 0,
-      label: spam.length ? `Spam words: ${spam.join(", ")}` : "No spam words",
-      hint: "Swap salesy wording for plain language.",
-    },
-    {
-      ok: body.split(/\n\s*\n/).filter(Boolean).length >= 2,
-      label: "Easy to skim",
-      hint: "Break the email into short paragraphs.",
-    },
+    { ok: words >= 40 && words <= 140, label: `${words} words`, hint: "Short emails get the most replies — aim for 40–140 words." },
+    { ok: subjectWords > 0 && subjectWords <= 5, label: `Subject: ${subjectWords} words`, hint: "Keep subjects to 5 words or fewer so they survive mobile inboxes." },
+    { ok: /\{\{\s*(first_name|full_name|username|niche)\s*\}\}/i.test(body), label: "Personalised", hint: "Use a token like {{first_name}} or {{niche}} so each email feels written for them." },
+    { ok: questions >= 1, label: questions ? `${questions} question${questions === 1 ? "" : "s"}` : "No question", hint: "End with one easy question — a clear ask is the biggest reply driver." },
+    { ok: links === 0, label: links ? `${links} link${links === 1 ? "" : "s"}` : "No links", hint: "Links in a first email hurt deliverability. Save them for the reply." },
+    { ok: spam.length === 0, label: spam.length ? `Spam words: ${spam.join(", ")}` : "No spam words", hint: "Swap salesy wording for plain language." },
+    { ok: body.split(/\n\s*\n/).filter(Boolean).length >= 2, label: "Easy to skim", hint: "Break the email into short paragraphs." },
   ];
   const passed = checks.filter((check) => check.ok).length;
   return { checks, score: Math.round((passed / checks.length) * 100) };
@@ -255,14 +189,10 @@ export type SendPlan = {
  */
 export function sendPlan(sentToday = emailedToday().length): SendPlan {
   const dayNumber = Math.max(1, Math.floor((Date.now() - warmupStartedAt()) / 86400000) + 1);
-  const safeDaily = Math.min(
-    50,
-    dayNumber <= 3 ? 10 : dayNumber <= 7 ? 15 : 15 + (dayNumber - 7) * 5,
-  );
+  const safeDaily = Math.min(50, dayNumber <= 3 ? 10 : dayNumber <= 7 ? 15 : 15 + (dayNumber - 7) * 5);
   const remaining = Math.max(0, safeDaily - sentToday);
   const batchSize = Math.min(remaining, 10);
-  const level: SendPlan["level"] =
-    remaining === 0 ? "stop" : remaining <= safeDaily * 0.25 ? "caution" : "ok";
+  const level: SendPlan["level"] = remaining === 0 ? "stop" : remaining <= safeDaily * 0.25 ? "caution" : "ok";
   const advice =
     remaining === 0
       ? `You've hit today's safe limit of ${safeDaily} from this address. Sending more risks the spam folder — continue tomorrow, or add a second mailbox.`
