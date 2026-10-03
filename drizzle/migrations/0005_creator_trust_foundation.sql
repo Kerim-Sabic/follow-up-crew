@@ -140,7 +140,7 @@ CREATE INDEX messages_scope ON public.email_messages(workspace_id,user_id,sent_a
 
 -- Keeps label and uuid consistent for both old writers (label only) and new writers (uuid).
 -- Named a_* so it fires before the other BEFORE triggers on these tables.
-CREATE FUNCTION private.sync_scope() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
+CREATE FUNCTION private.sync_scope() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 BEGIN
  IF TG_OP='UPDATE' THEN
   IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id OR NEW.workspace IS DISTINCT FROM OLD.workspace
@@ -161,7 +161,7 @@ END $$;
 CREATE TRIGGER a_sync_scope BEFORE INSERT OR UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION private.sync_scope();
 CREATE TRIGGER a_sync_scope BEFORE INSERT OR UPDATE ON public.lead_stages FOR EACH ROW EXECUTE FUNCTION private.sync_scope();
 CREATE TRIGGER a_sync_scope BEFORE INSERT OR UPDATE ON public.email_messages FOR EACH ROW EXECUTE FUNCTION private.sync_scope();
-CREATE FUNCTION private.scope_note() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
+CREATE FUNCTION private.scope_note() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 BEGIN
  IF TG_OP='UPDATE' THEN
   IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id THEN RAISE EXCEPTION 'Use an authorized copy operation to move data'; END IF;
@@ -265,6 +265,6 @@ SELECT w.id,s.key,s.label,s.color,s.position,true,s.key::public.lead_status FROM
 ON CONFLICT(workspace_id,key) DO NOTHING;
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA private FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION private.member_role(uuid),private.can_write(uuid),private.is_admin(uuid),private.is_developer(),private.founder_identity_ok(uuid,uuid),private.create_invitation(uuid,text,text,text),private.accept_invitation(text),private.manage_member(uuid,uuid,text),private.revoke_invitation(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.member_role(uuid),private.can_write(uuid),private.is_admin(uuid),private.is_developer(),private.founder_identity_ok(uuid,uuid),private.create_invitation(uuid,text,text,text),private.accept_invitation(text),private.manage_member(uuid,uuid,text),private.revoke_invitation(uuid),private.legacy_open(),private.workspace_of_key(public.workspace_key),private.key_of_workspace(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.create_workspace_invitation(uuid,text,text,text),public.accept_workspace_invitation(text),public.manage_workspace_member(uuid,uuid,text),public.revoke_workspace_invitation(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_workspace_invitation(uuid,text,text,text),public.accept_workspace_invitation(text),public.manage_workspace_member(uuid,uuid,text),public.revoke_workspace_invitation(uuid) TO authenticated;

@@ -2,7 +2,7 @@ CREATE TABLE public.creator_feedback (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace uuid NOT NULL REFERENCES public.workspaces(id),
  lead_id uuid NOT NULL,actor uuid NOT NULL,decision text NOT NULL CHECK(decision IN ('strong_fit','not_fit','unsure')),
  topic text NOT NULL,reason text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),
- FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
+ FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
 );
 CREATE TABLE public.partnership_projects (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace uuid NOT NULL REFERENCES public.workspaces(id),lead_id uuid NOT NULL,
@@ -10,12 +10,12 @@ CREATE TABLE public.partnership_projects (
  state text NOT NULL DEFAULT 'validation' CHECK(state IN ('validation','production','launched','closed')),
  proposed_terms text NOT NULL DEFAULT 'Not specified',agreed_terms text NOT NULL DEFAULT 'Not recorded',
  launch_url text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(workspace,lead_id),
- FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
+ FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
 );
 CREATE TABLE public.proposals (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace uuid NOT NULL REFERENCES public.workspaces(id),lead_id uuid NOT NULL,
  title text NOT NULL,public_content text NOT NULL,version integer NOT NULL DEFAULT 1,created_by uuid NOT NULL,
- created_at timestamptz NOT NULL DEFAULT now(),FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
+ created_at timestamptz NOT NULL DEFAULT now(),FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
 );
 CREATE TABLE private.proposal_shares (
  token_hash text PRIMARY KEY,proposal_id uuid NOT NULL REFERENCES public.proposals(id),version integer NOT NULL,

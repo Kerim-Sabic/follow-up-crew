@@ -5,7 +5,7 @@ CREATE TABLE private.mail_outbox (
  lead_id uuid NOT NULL, actor uuid NOT NULL, mailbox_id uuid NOT NULL, approval_hash text NOT NULL,
  status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sent')), is_reply boolean NOT NULL,
  provider_message_id text, created_at timestamptz NOT NULL DEFAULT now(),
- UNIQUE(workspace,approval_hash), FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
+ UNIQUE(workspace,approval_hash), FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
 );
 CREATE UNIQUE INDEX initial_contact_once ON private.mail_outbox(workspace,lead_id) WHERE NOT is_reply;
 REVOKE ALL ON private.mail_outbox FROM PUBLIC,anon,authenticated;
