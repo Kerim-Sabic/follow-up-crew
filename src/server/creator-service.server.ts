@@ -563,7 +563,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
           const [collision] = await sql`select
             exists(select 1 from public.lead_suppressions where workspace=${w} and handle=${observation.handle}) as suppressed,
             exists(select 1 from private.mail_outbox where workspace=${w} and lead_id=${draft["lead_id"]} and status in ('pending','sent')) as queued_mail,
-            exists(select 1 from public.email_messages where workspace=${w} and lead_id=${draft["lead_id"]} and direction='out') as sent_mail,
+            exists(select 1 from public.email_messages where workspace_id=${w} and lead_id=${draft["lead_id"]} and direction='out') as sent_mail,
             exists(select 1 from public.partnership_drafts where workspace=${w} and lead_id=${draft["lead_id"]} and state='manually_recorded') as recorded`;
           if (
             collision?.["suppressed"] ||
@@ -576,7 +576,7 @@ export async function executeCommand(actor: string, command: Command): Promise<u
         }
         case "suppress": {
           await sql`insert into public.lead_suppressions(workspace,handle,reason) values(${w},${c.handle.toLowerCase()},${c.reason}) on conflict(workspace,handle) do nothing`;
-          await sql`update public.partnership_drafts set state='invalidated',approval_hash=null where workspace=${w} and lead_id in (select id from public.leads where workspace=${w} and lower(regexp_replace(username,'^@',''))=${c.handle.toLowerCase()})`;
+          await sql`update public.partnership_drafts set state='invalidated',approval_hash=null where workspace=${w} and lead_id in (select id from public.leads where workspace_id=${w} and lower(regexp_replace(username,'^@',''))=${c.handle.toLowerCase()})`;
           return { suppressed: true };
         }
         case "preferences": {
@@ -716,7 +716,7 @@ export async function runWorkerUnit() {
     if (o && index < spec.targetCount) {
       const known = await withWorkspace(actor, w, false, async (sql) => {
         const [exists] =
-          await sql`select 1 from public.leads where workspace=${w} and lower(regexp_replace(username,'^@',''))=${o!.handle} union all select 1 from public.lead_suppressions where workspace=${w} and handle=${o!.handle} limit 1`;
+          await sql`select 1 from public.leads where workspace_id=${w} and lower(regexp_replace(username,'^@',''))=${o!.handle} union all select 1 from public.lead_suppressions where workspace=${w} and handle=${o!.handle} limit 1`;
         return Boolean(exists);
       });
       if (spec.source === "modash" && !known) o = await enrichModash(actor, w, id, spec, o);
