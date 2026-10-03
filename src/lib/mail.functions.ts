@@ -332,6 +332,7 @@ export const replyToThread = createServerFn({ method: "POST" })
       .eq("id", data.messageId)
       .maybeSingle();
     if (!incoming?.mail_account_id) throw new Error("Message not found.");
+    const incomingScope = (incoming as unknown as { workspace_id: string }).workspace_id;
     const account = await getAccount(context.userId, incoming.mail_account_id);
     if (!account) throw new Error("That reply belongs to another teammate's mailbox.");
 
@@ -351,7 +352,7 @@ export const replyToThread = createServerFn({ method: "POST" })
       throw new Error("Link this message to an authorized workspace lead before replying.");
     const reservation = await reserveMail(
       context.userId,
-      incoming.workspace,
+      incomingScope,
       incoming.lead_id,
       account.id,
       to,
@@ -377,10 +378,10 @@ export const replyToThread = createServerFn({ method: "POST" })
       throw new Error(
         "Gmail delivery outcome is ambiguous; reconcile the pending outbox before retrying",
       );
-    await settleMail(context.userId, incoming.workspace, reservation, result.id);
+    await settleMail(context.userId, incomingScope, reservation, result.id);
 
     await supabaseAdmin.from("email_messages").insert({
-      workspace_id: incoming.workspace,
+      workspace_id: incomingScope,
       lead_id: incoming.lead_id,
       mail_account_id: account.id,
       user_id: context.userId,
