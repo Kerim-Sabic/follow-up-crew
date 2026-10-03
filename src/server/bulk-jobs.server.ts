@@ -39,7 +39,7 @@ export async function createBulkJob(
     if (kind === "stage") {
       if (!targetStage) throw new Error("Select a stage before starting a bulk change");
       const [stage] =
-        await sql`select 1 from public.lead_stages where workspace=${w} and key=${targetStage}`;
+        await sql`select 1 from public.lead_stages where workspace_id=${w} and key=${targetStage}`;
       if (!stage) throw new Error("Stage unavailable in this workspace");
     }
     const [job] =
@@ -48,8 +48,8 @@ export async function createBulkJob(
     const id = job!["id"] as string;
     const [snapshot] =
       await sql`with inserted as (insert into private.bulk_job_items(job_id,workspace,lead_id,original_stage,position)
-      select ${id},l.workspace,l.id,l.stage,row_number() over(order by l.id)
-      from public.leads l where l.workspace=${w}
+      select ${id},l.workspace_id,l.id,l.stage,row_number() over(order by l.id)
+      from public.leads l where l.workspace_id=${w}
       and (${f.query}='' or strpos(lower(l.username||' '||coalesce(l.full_name,'')||' '||coalesce(l.email,'')),lower(${f.query}))>0)
       and (${f.stage}='' or l.stage=${f.stage})
       and (${f.owner}='' or (${f.owner}='mine' and l.owner_id=${actor}) or (${f.owner}='unassigned' and l.owner_id is null))
@@ -109,7 +109,7 @@ export async function runBulkUnit() {
         throw new Error("Bulk job cancelled or lease replaced");
       const rows = await sql`select i.lead_id,i.original_stage,i.position,l.id,l.number,l.username,
         l.full_name,l.email,l.instagram_url,l.niche,l.stage from private.bulk_job_items i
-        left join public.leads l on l.id=i.lead_id and l.workspace=i.workspace
+        left join public.leads l on l.id=i.lead_id and l.workspace_id=i.workspace
         where i.job_id=${id} and not i.processed order by i.position limit 100 for update of i`;
       if (!rows.length) {
         await sql`update private.bulk_jobs set state='completed',completed_at=now(),lease_token=null,lease_until=null where id=${id}`;
@@ -119,7 +119,7 @@ export async function runBulkUnit() {
       if (job["kind"] === "stage") {
         const changed =
           await sql`update public.leads l set stage=${job["target_stage"] as string},last_touched_by=${actor},last_touched_at=now()
-          from private.bulk_job_items i where i.job_id=${id} and i.lead_id=l.id and l.workspace=${w}
+          from private.bulk_job_items i where i.job_id=${id} and i.lead_id=l.id and l.workspace_id=${w}
           and not i.processed and i.position>=${rows[0]!["position"] as number} and i.position<=${rows.at(-1)!["position"] as number}
           and l.stage is not distinct from i.original_stage returning l.id`;
         const changedIds = new Set(changed.map((row) => row["id"] as string));
