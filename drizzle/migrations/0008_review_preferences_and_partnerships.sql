@@ -2,7 +2,7 @@ CREATE TABLE public.creator_feedback (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace uuid NOT NULL REFERENCES public.workspaces(id),
  lead_id uuid NOT NULL,actor uuid NOT NULL,decision text NOT NULL CHECK(decision IN ('strong_fit','not_fit','unsure')),
  topic text NOT NULL,reason text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),
- FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
+ FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
 );
 CREATE TABLE public.partnership_projects (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace uuid NOT NULL REFERENCES public.workspaces(id),lead_id uuid NOT NULL,
@@ -10,12 +10,12 @@ CREATE TABLE public.partnership_projects (
  state text NOT NULL DEFAULT 'validation' CHECK(state IN ('validation','production','launched','closed')),
  proposed_terms text NOT NULL DEFAULT 'Not specified',agreed_terms text NOT NULL DEFAULT 'Not recorded',
  launch_url text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(workspace,lead_id),
- FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
+ FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
 );
 CREATE TABLE public.proposals (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace uuid NOT NULL REFERENCES public.workspaces(id),lead_id uuid NOT NULL,
  title text NOT NULL,public_content text NOT NULL,version integer NOT NULL DEFAULT 1,created_by uuid NOT NULL,
- created_at timestamptz NOT NULL DEFAULT now(),FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace_id,id)
+ created_at timestamptz NOT NULL DEFAULT now(),FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id)
 );
 CREATE TABLE private.proposal_shares (
  token_hash text PRIMARY KEY,proposal_id uuid NOT NULL REFERENCES public.proposals(id),version integer NOT NULL,
@@ -29,13 +29,13 @@ DO $$ DECLARE t text; BEGIN
  EXECUTE format('CREATE POLICY scope_read ON public.%I FOR SELECT TO authenticated USING(private.member_role(workspace) IS NOT NULL)',t);
  END LOOP;
 END $$;
-CREATE INDEX leads_normalized_identity ON public.leads(workspace_id,lower(regexp_replace(username,'^@','')));
+CREATE INDEX leads_normalized_identity ON public.leads(workspace,lower(regexp_replace(username,'^@','')));
 CREATE FUNCTION private.guard_lead_identity() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 BEGIN
- IF auth.uid() IS NOT NULL AND NOT private.can_write(NEW.workspace_id) THEN RAISE EXCEPTION 'Workspace permission denied'; END IF;
+ IF auth.uid() IS NOT NULL AND NOT private.can_write(NEW.workspace) THEN RAISE EXCEPTION 'Workspace permission denied'; END IF;
  IF TG_OP='INSERT' OR lower(regexp_replace(NEW.username,'^@',''))<>lower(regexp_replace(OLD.username,'^@','')) THEN
-  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.workspace_id::text||':'||lower(regexp_replace(NEW.username,'^@','')),0));
-  IF EXISTS(SELECT 1 FROM public.leads WHERE workspace_id=NEW.workspace_id AND lower(regexp_replace(username,'^@',''))=lower(regexp_replace(NEW.username,'^@','')) AND id<>NEW.id)
+  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.workspace::text||':'||lower(regexp_replace(NEW.username,'^@','')),0));
+  IF EXISTS(SELECT 1 FROM public.leads WHERE workspace=NEW.workspace AND lower(regexp_replace(username,'^@',''))=lower(regexp_replace(NEW.username,'^@','')) AND id<>NEW.id)
   THEN RAISE EXCEPTION 'Creator already exists in this workspace'; END IF;
  END IF;
  IF auth.uid() IS NOT NULL AND TG_OP='UPDATE' THEN NEW.last_touched_by:=auth.uid(); NEW.last_touched_at:=now(); END IF;

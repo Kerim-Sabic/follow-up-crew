@@ -50,7 +50,7 @@ try {
     if (before.length && JSON.stringify(before) !== JSON.stringify(after))
       throw new Error("Row-count reconciliation failed");
     const [orphan] =
-      await tx`select count(*)::int as n from lead_notes n left join leads l on l.id=n.lead_id and l.workspace_id=n.workspace_id where l.id is null`;
+      await tx`select count(*)::int as n from lead_notes n left join leads l on l.id=n.lead_id and l.workspace=n.workspace where l.id is null`;
     if (orphan?.["n"] !== 0) throw new Error("Relationship reconciliation failed");
     console.log(
       JSON.stringify({

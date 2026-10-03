@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { legacyLabel } from "./workspace-scope";
 import type { Database } from "@/integrations/supabase/types";
 
 export type LeadStatus = string;
@@ -159,11 +160,15 @@ export function leadStage(lead: Pick<Lead, "stage" | "status">) {
   return lead.stage ?? lead.status;
 }
 
+/** UUID workspace scope column (stage-1 rollout); the legacy `workspace` label column belongs to the old app. */
+const SCOPE = "workspace_id" as never;
+
+
 export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
   const { data, error } = await supabase
     .from("lead_stages")
     .select("*")
-    .eq("workspace_id", workspace)
+    .eq(SCOPE, workspace as never)
     .order("position", { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -185,8 +190,8 @@ export async function createStage(
   const { data, error } = await supabase
     .from("lead_stages")
     .insert({
-      workspace: "docmesker",
       workspace_id: workspace,
+      workspace: legacyLabel(workspace),
       key: stageKey(input.label),
       label: input.label.trim(),
       color: input.color,
@@ -220,7 +225,7 @@ export async function deleteStage(stage: Stage) {
   const { error: moveError } = await supabase
     .from("leads")
     .update({ stage: "not_contacted" })
-    .eq("workspace_id", stage.workspace_id)
+    .eq(SCOPE, (stage as unknown as { workspace_id: string }).workspace_id as never)
     .eq("stage", stage.key);
   if (moveError) throw moveError;
   const { error } = await supabase.from("lead_stages").delete().eq("id", stage.id);
@@ -231,7 +236,7 @@ export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("leads")
     .select("*")
-    .eq("workspace_id", workspace)
+    .eq(SCOPE, workspace as never)
     .order("id")
     .limit(100);
   if (error) throw error;
@@ -278,7 +283,7 @@ async function nextNumber(workspace: Workspace) {
   const { data } = await supabase
     .from("leads")
     .select("number")
-    .eq("workspace_id", workspace)
+    .eq(SCOPE, workspace as never)
     .order("number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -297,8 +302,8 @@ export async function createLead(
     .from("leads")
     .insert({
       number: start,
-      workspace: "docmesker",
       workspace_id: workspace,
+      workspace: legacyLabel(workspace),
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
@@ -323,8 +328,8 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
     const username = input.username.trim().replace(/^@/, "");
     return {
       number: start + index,
-      workspace: "docmesker",
       workspace_id: workspace,
+      workspace: legacyLabel(workspace),
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
@@ -334,7 +339,7 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
       stage: "not_contacted",
     };
   });
-  const { error } = await supabase.from("leads").insert(rows);
+  const { error } = await supabase.from("leads").insert(rows as never);
   if (error) throw error;
   return rows.length;
 }
@@ -361,7 +366,7 @@ export async function claimLead(id: string, userId: string | null) {
 export async function addNote(leadId: string, authorId: string, body: string) {
   const { error } = await supabase
     .from("lead_notes")
-    .insert({ lead_id: leadId, author_id: authorId, body });
+    .insert({ lead_id: leadId, author_id: authorId, body } as never); // scope filled from the lead by the database
   if (error) throw error;
 }
 
