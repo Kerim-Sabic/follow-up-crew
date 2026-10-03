@@ -1,5 +1,4 @@
--- Coordinated deployment: drain old workers, back up, rehearse, then apply atomically.
--- Legacy labels remain for reconciliation; IDs, content and relationship keys survive.
+-- Stage 1 of a staged, backward-compatible rollout. Back up and rehearse first; nothing is dropped or renamed.
 CREATE SCHEMA IF NOT EXISTS private;
 REVOKE ALL ON SCHEMA private FROM PUBLIC;
 GRANT USAGE ON SCHEMA private TO authenticated, service_role;
@@ -98,81 +97,100 @@ END $$;
 CREATE TRIGGER protect_membership BEFORE UPDATE OR DELETE ON public.workspace_members
 FOR EACH ROW EXECUTE FUNCTION private.protect_membership();
 
--- Retain the legacy enum columns, replace the application-facing column with UUID scope.
-ALTER TABLE public.leads RENAME COLUMN workspace TO legacy_workspace;
-ALTER TABLE public.lead_stages RENAME COLUMN workspace TO legacy_workspace;
-ALTER TABLE public.email_messages RENAME COLUMN workspace TO legacy_workspace;
-ALTER TABLE public.leads ADD COLUMN workspace uuid REFERENCES public.workspaces(id);
-ALTER TABLE public.lead_stages ADD COLUMN workspace uuid REFERENCES public.workspaces(id);
-ALTER TABLE public.email_messages ADD COLUMN workspace uuid REFERENCES public.workspaces(id);
-DROP TRIGGER protect_builtin_stage ON public.lead_stages;
-UPDATE public.leads SET workspace=CASE WHEN legacy_workspace='docmesker' THEN '00000000-0000-4000-8000-000000000001'::uuid ELSE '00000000-0000-4000-8000-000000000002'::uuid END;
-UPDATE public.lead_stages SET workspace=CASE WHEN legacy_workspace='docmesker' THEN '00000000-0000-4000-8000-000000000001'::uuid ELSE '00000000-0000-4000-8000-000000000002'::uuid END;
-UPDATE public.email_messages e SET workspace=coalesce((SELECT workspace FROM public.leads WHERE id=e.lead_id),'00000000-0000-4000-8000-000000000002'::uuid);
-ALTER TABLE public.leads ALTER COLUMN workspace SET NOT NULL;
-ALTER TABLE public.lead_stages ALTER COLUMN workspace SET NOT NULL;
-ALTER TABLE public.email_messages ALTER COLUMN workspace SET NOT NULL;
-ALTER TABLE public.lead_stages ALTER COLUMN legacy_workspace DROP NOT NULL;
-CREATE TRIGGER protect_builtin_stage BEFORE UPDATE ON public.lead_stages FOR EACH ROW EXECUTE FUNCTION public.protect_builtin_stage();
-ALTER TABLE public.lead_stages DROP CONSTRAINT lead_stages_workspace_key_key;
-ALTER TABLE public.lead_stages ADD UNIQUE(workspace,key);
-ALTER TABLE public.leads ADD UNIQUE(workspace,id);
-ALTER TABLE public.email_messages ADD CONSTRAINT email_lead_scope FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id);
-ALTER TABLE public.lead_notes ADD COLUMN workspace uuid REFERENCES public.workspaces(id);
-UPDATE public.lead_notes n SET workspace=l.workspace FROM public.leads l WHERE l.id=n.lead_id;
-ALTER TABLE public.lead_notes ALTER COLUMN workspace SET NOT NULL;
-ALTER TABLE public.lead_notes ADD CONSTRAINT note_lead_scope FOREIGN KEY(workspace,lead_id) REFERENCES public.leads(workspace,id);
-CREATE INDEX leads_scope_cursor ON public.leads(workspace,id);
-CREATE INDEX leads_scope_stage ON public.leads(workspace,stage,id);
-CREATE INDEX leads_scope_handle ON public.leads(workspace,lower(username));
-CREATE INDEX notes_scope ON public.lead_notes(workspace,lead_id,created_at);
-CREATE INDEX messages_scope ON public.email_messages(workspace,user_id,sent_at DESC);
+-- STAGE 1 (backward compatible). The legacy enum column `workspace` keeps its meaning and values
+-- for the currently deployed app. The UUID scope lives in a NEW column `workspace_id`; old and new
+-- code never read the same column with different meanings. Legacy policies and triggers stay;
+-- membership policies are added alongside them. Stage 2 (separate, later) retires legacy access
+-- only after every user's membership is verified.
+CREATE TABLE private.rollout (singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), stage integer NOT NULL DEFAULT 1 CHECK(stage IN (1,2)));
+INSERT INTO private.rollout DEFAULT VALUES;
+CREATE FUNCTION private.legacy_open() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT coalesce((SELECT stage=1 FROM private.rollout),true) $$;
+CREATE FUNCTION private.workspace_of_key(k public.workspace_key) RETURNS uuid LANGUAGE sql IMMUTABLE SET search_path='' AS $$
+ SELECT CASE k WHEN 'docmesker' THEN '00000000-0000-4000-8000-000000000001'::uuid WHEN 'justin' THEN '00000000-0000-4000-8000-000000000002'::uuid END $$;
+CREATE FUNCTION private.key_of_workspace(w uuid) RETURNS public.workspace_key LANGUAGE sql IMMUTABLE SET search_path='' AS $$
+ SELECT CASE w WHEN '00000000-0000-4000-8000-000000000001'::uuid THEN 'docmesker'::public.workspace_key
+ WHEN '00000000-0000-4000-8000-000000000002'::uuid THEN 'justin'::public.workspace_key END $$;
 
-CREATE OR REPLACE FUNCTION public.sync_lead_stage() RETURNS trigger LANGUAGE plpgsql
-SET search_path = '' AS $$
-DECLARE base public.lead_status;
+ALTER TABLE public.leads ADD COLUMN workspace_id uuid REFERENCES public.workspaces(id);
+ALTER TABLE public.lead_stages ADD COLUMN workspace_id uuid REFERENCES public.workspaces(id);
+ALTER TABLE public.email_messages ADD COLUMN workspace_id uuid REFERENCES public.workspaces(id);
+ALTER TABLE public.lead_notes ADD COLUMN workspace_id uuid REFERENCES public.workspaces(id);
+COMMENT ON COLUMN public.leads.workspace IS 'LEGACY label read by pre-cutover app; kept in sync with workspace_id';
+COMMENT ON COLUMN public.leads.workspace_id IS 'Workspace scope (uuid) for membership-based access';
+-- Backfill (protect_builtin_stage ignores workspace_id; legacy triggers keep working).
+UPDATE public.leads SET workspace_id=private.workspace_of_key(workspace);
+UPDATE public.lead_stages SET workspace_id=private.workspace_of_key(workspace);
+UPDATE public.email_messages e SET workspace_id=coalesce((SELECT l.workspace_id FROM public.leads l WHERE l.id=e.lead_id),private.workspace_of_key(e.workspace));
+UPDATE public.lead_notes n SET workspace_id=l.workspace_id FROM public.leads l WHERE l.id=n.lead_id;
+ALTER TABLE public.leads ALTER COLUMN workspace_id SET NOT NULL;
+ALTER TABLE public.lead_stages ALTER COLUMN workspace_id SET NOT NULL;
+ALTER TABLE public.email_messages ALTER COLUMN workspace_id SET NOT NULL;
+ALTER TABLE public.lead_notes ALTER COLUMN workspace_id SET NOT NULL;
+-- New workspaces have no legacy label; their stage rows carry NULL there (legacy app filters by label, so never sees them).
+ALTER TABLE public.lead_stages ALTER COLUMN workspace DROP NOT NULL;
+ALTER TABLE public.lead_stages ADD CONSTRAINT lead_stages_scope_key UNIQUE(workspace_id,key);
+ALTER TABLE public.leads ADD CONSTRAINT leads_scope_id UNIQUE(workspace_id,id);
+ALTER TABLE public.email_messages ADD CONSTRAINT email_lead_scope FOREIGN KEY(workspace_id,lead_id) REFERENCES public.leads(workspace_id,id);
+ALTER TABLE public.lead_notes ADD CONSTRAINT note_lead_scope FOREIGN KEY(workspace_id,lead_id) REFERENCES public.leads(workspace_id,id);
+CREATE INDEX leads_scope_stage ON public.leads(workspace_id,stage,id);
+CREATE INDEX leads_scope_handle ON public.leads(workspace_id,lower(username));
+CREATE INDEX notes_scope ON public.lead_notes(workspace_id,lead_id,created_at);
+CREATE INDEX messages_scope ON public.email_messages(workspace_id,user_id,sent_at DESC);
+
+-- Keeps label and uuid consistent for both old writers (label only) and new writers (uuid).
+-- Named a_* so it fires before the other BEFORE triggers on these tables.
+CREATE FUNCTION private.sync_scope() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
 BEGIN
- IF NEW.stage IS NULL THEN NEW.stage:=NEW.status::text; END IF;
- IF NEW.stage IN ('not_contacted','contacted','replied','deal','dead') THEN NEW.status:=NEW.stage::public.lead_status;
- ELSE SELECT base_status INTO base FROM public.lead_stages WHERE workspace=NEW.workspace AND key=NEW.stage;
- IF base IS NULL THEN RAISE EXCEPTION 'Stage does not belong to workspace'; END IF; NEW.status:=base; END IF;
+ IF TG_OP='UPDATE' THEN
+  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id OR NEW.workspace IS DISTINCT FROM OLD.workspace
+  THEN RAISE EXCEPTION 'Use an authorized copy operation to move data'; END IF;
+  RETURN NEW;
+ END IF;
+ IF TG_TABLE_NAME='email_messages' AND NEW.workspace_id IS NULL AND NEW.lead_id IS NOT NULL THEN
+  SELECT workspace_id INTO NEW.workspace_id FROM public.leads WHERE id=NEW.lead_id;
+ END IF;
+ IF NEW.workspace_id IS NULL THEN NEW.workspace_id:=private.workspace_of_key(NEW.workspace);
+ ELSE
+  NEW.workspace:=private.key_of_workspace(NEW.workspace_id);
+  IF NEW.workspace IS NULL AND TG_TABLE_NAME<>'lead_stages' THEN
+   RAISE EXCEPTION 'Workspace opens for leads after the stage-2 cutover'; END IF;
+ END IF;
  RETURN NEW;
 END $$;
-CREATE FUNCTION private.scope_note() RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $$
+CREATE TRIGGER a_sync_scope BEFORE INSERT OR UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION private.sync_scope();
+CREATE TRIGGER a_sync_scope BEFORE INSERT OR UPDATE ON public.lead_stages FOR EACH ROW EXECUTE FUNCTION private.sync_scope();
+CREATE TRIGGER a_sync_scope BEFORE INSERT OR UPDATE ON public.email_messages FOR EACH ROW EXECUTE FUNCTION private.sync_scope();
+CREATE FUNCTION private.scope_note() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
 BEGIN
- IF NEW.workspace IS NULL THEN SELECT workspace INTO NEW.workspace FROM public.leads WHERE id=NEW.lead_id; END IF;
+ IF TG_OP='UPDATE' THEN
+  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id THEN RAISE EXCEPTION 'Use an authorized copy operation to move data'; END IF;
+ ELSIF NEW.workspace_id IS NULL THEN SELECT workspace_id INTO NEW.workspace_id FROM public.leads WHERE id=NEW.lead_id; END IF;
  RETURN NEW;
 END $$;
-CREATE TRIGGER scope_note BEFORE INSERT ON public.lead_notes FOR EACH ROW EXECUTE FUNCTION private.scope_note();
-CREATE FUNCTION private.immutable_scope() RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $$
-BEGIN IF NEW.workspace<>OLD.workspace THEN RAISE EXCEPTION 'Use an authorized copy operation to move data'; END IF; RETURN NEW; END $$;
-CREATE TRIGGER immutable_lead_scope BEFORE UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION private.immutable_scope();
-CREATE TRIGGER immutable_note_scope BEFORE UPDATE ON public.lead_notes FOR EACH ROW EXECUTE FUNCTION private.immutable_scope();
-CREATE TRIGGER immutable_stage_scope BEFORE UPDATE ON public.lead_stages FOR EACH ROW EXECUTE FUNCTION private.immutable_scope();
+CREATE TRIGGER a_scope_note BEFORE INSERT OR UPDATE ON public.lead_notes FOR EACH ROW EXECUTE FUNCTION private.scope_note();
+-- public.sync_lead_stage and protect_builtin_stage are intentionally left unchanged (label-based, still consistent).
 
--- Remove every existing policy on affected tables, including unknown permissive additions.
-DO $$ DECLARE p record; BEGIN
- FOR p IN SELECT schemaname,tablename,policyname FROM pg_policies WHERE schemaname='public'
- AND tablename IN ('leads','lead_notes','lead_stages','profiles','email_messages') LOOP
- EXECUTE format('DROP POLICY %I ON %I.%I',p.policyname,p.schemaname,p.tablename); END LOOP;
-END $$;
-CREATE POLICY leads_read ON public.leads FOR SELECT TO authenticated USING(private.member_role(workspace) IS NOT NULL);
-CREATE POLICY leads_insert ON public.leads FOR INSERT TO authenticated WITH CHECK(private.can_write(workspace));
-CREATE POLICY leads_update ON public.leads FOR UPDATE TO authenticated USING(private.can_write(workspace)) WITH CHECK(private.can_write(workspace));
-CREATE POLICY leads_delete ON public.leads FOR DELETE TO authenticated USING(private.is_admin(workspace));
-CREATE POLICY notes_read ON public.lead_notes FOR SELECT TO authenticated USING(private.member_role(workspace) IS NOT NULL);
-CREATE POLICY notes_insert ON public.lead_notes FOR INSERT TO authenticated WITH CHECK(private.can_write(workspace) AND author_id=auth.uid());
-CREATE POLICY notes_update ON public.lead_notes FOR UPDATE TO authenticated USING(private.can_write(workspace) AND author_id=auth.uid()) WITH CHECK(private.can_write(workspace) AND author_id=auth.uid());
-CREATE POLICY notes_delete ON public.lead_notes FOR DELETE TO authenticated USING(private.can_write(workspace) AND author_id=auth.uid());
-CREATE POLICY stages_read ON public.lead_stages FOR SELECT TO authenticated USING(private.member_role(workspace) IS NOT NULL);
-CREATE POLICY stages_insert ON public.lead_stages FOR INSERT TO authenticated WITH CHECK(private.is_admin(workspace) AND NOT is_builtin);
-CREATE POLICY stages_update ON public.lead_stages FOR UPDATE TO authenticated USING(private.is_admin(workspace)) WITH CHECK(private.is_admin(workspace));
-CREATE POLICY stages_delete ON public.lead_stages FOR DELETE TO authenticated USING(private.is_admin(workspace) AND NOT is_builtin);
-CREATE POLICY messages_read ON public.email_messages FOR SELECT TO authenticated USING(private.member_role(workspace) IS NOT NULL AND user_id=auth.uid());
+-- Membership policies are ADDED next to the legacy team policies (permissive policies OR together),
+-- so nobody loses or gains visibility during stage 1. Stage 2 drops the legacy ones.
+CREATE POLICY leads_read ON public.leads FOR SELECT TO authenticated USING(private.member_role(workspace_id) IS NOT NULL);
+CREATE POLICY leads_insert ON public.leads FOR INSERT TO authenticated WITH CHECK(private.can_write(workspace_id));
+CREATE POLICY leads_update ON public.leads FOR UPDATE TO authenticated USING(private.can_write(workspace_id)) WITH CHECK(private.can_write(workspace_id));
+CREATE POLICY leads_delete ON public.leads FOR DELETE TO authenticated USING(private.is_admin(workspace_id));
+CREATE POLICY notes_read ON public.lead_notes FOR SELECT TO authenticated USING(private.member_role(workspace_id) IS NOT NULL);
+CREATE POLICY notes_insert ON public.lead_notes FOR INSERT TO authenticated WITH CHECK(private.can_write(workspace_id) AND author_id=auth.uid());
+CREATE POLICY notes_update ON public.lead_notes FOR UPDATE TO authenticated USING(private.can_write(workspace_id) AND author_id=auth.uid()) WITH CHECK(private.can_write(workspace_id) AND author_id=auth.uid());
+CREATE POLICY notes_delete ON public.lead_notes FOR DELETE TO authenticated USING(private.can_write(workspace_id) AND author_id=auth.uid());
+CREATE POLICY stages_read ON public.lead_stages FOR SELECT TO authenticated USING(private.member_role(workspace_id) IS NOT NULL);
+CREATE POLICY stages_insert ON public.lead_stages FOR INSERT TO authenticated WITH CHECK(private.is_admin(workspace_id) AND NOT is_builtin);
+CREATE POLICY stages_update ON public.lead_stages FOR UPDATE TO authenticated USING(private.is_admin(workspace_id)) WITH CHECK(private.is_admin(workspace_id));
+CREATE POLICY stages_delete ON public.lead_stages FOR DELETE TO authenticated USING(private.is_admin(workspace_id) AND NOT is_builtin);
+CREATE POLICY messages_read ON public.email_messages FOR SELECT TO authenticated USING(private.member_role(workspace_id) IS NOT NULL AND user_id=auth.uid());
 CREATE POLICY profiles_read ON public.profiles FOR SELECT TO authenticated USING(id=auth.uid() OR EXISTS
  (SELECT 1 FROM public.workspace_members m WHERE m.user_id=id AND private.member_role(m.workspace) IS NOT NULL));
-CREATE POLICY profiles_insert ON public.profiles FOR INSERT TO authenticated WITH CHECK(id=auth.uid());
-CREATE POLICY profiles_update ON public.profiles FOR UPDATE TO authenticated USING(id=auth.uid()) WITH CHECK(id=auth.uid());
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.leads,public.lead_notes,public.lead_stages TO authenticated;
+GRANT SELECT ON public.email_messages,public.profiles TO authenticated;
+GRANT ALL ON public.leads,public.lead_notes,public.lead_stages,public.email_messages,public.profiles TO service_role;
 
 ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
@@ -182,7 +200,6 @@ ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.workspaces,public.workspace_members,public.developer_entitlements,public.workspace_invitations,public.audit_events FROM anon,authenticated;
 GRANT SELECT ON public.workspaces,public.workspace_members,public.developer_entitlements,public.audit_events TO authenticated;
 GRANT ALL ON public.workspaces,public.workspace_members,public.developer_entitlements,public.workspace_invitations,public.audit_events TO service_role;
-REVOKE ALL ON public.leads,public.lead_notes,public.lead_stages,public.profiles,public.email_messages FROM anon;
 CREATE POLICY workspace_read ON public.workspaces FOR SELECT TO authenticated USING(private.member_role(id) IS NOT NULL);
 CREATE POLICY members_read ON public.workspace_members FOR SELECT TO authenticated USING(private.member_role(workspace) IS NOT NULL);
 CREATE POLICY entitlement_read ON public.developer_entitlements FOR SELECT TO authenticated USING(user_id=auth.uid() AND EXISTS
@@ -236,16 +253,16 @@ CREATE FUNCTION public.revoke_workspace_invitation(i uuid) RETURNS void LANGUAGE
 
 CREATE FUNCTION private.seed_stages() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 BEGIN
- INSERT INTO public.lead_stages(workspace,key,label,color,position,is_builtin,base_status)
+ INSERT INTO public.lead_stages(workspace_id,key,label,color,position,is_builtin,base_status)
  SELECT NEW.id,key,label,color,position,true,key::public.lead_status FROM (VALUES
  ('not_contacted','Not contacted','slate',0),('contacted','Contacted','blue',1),('replied','Replied','violet',2),('deal','Deal','emerald',3),('dead','Dead','rose',4)) s(key,label,color,position);
  RETURN NEW;
 END $$;
 CREATE TRIGGER seed_workspace_stages AFTER INSERT ON public.workspaces FOR EACH ROW EXECUTE FUNCTION private.seed_stages();
-INSERT INTO public.lead_stages(workspace,key,label,color,position,is_builtin,base_status)
+INSERT INTO public.lead_stages(workspace_id,key,label,color,position,is_builtin,base_status)
 SELECT w.id,s.key,s.label,s.color,s.position,true,s.key::public.lead_status FROM public.workspaces w CROSS JOIN
  (VALUES ('not_contacted','Not contacted','slate',0),('contacted','Contacted','blue',1),('replied','Replied','violet',2),('deal','Deal','emerald',3),('dead','Dead','rose',4)) s(key,label,color,position)
-ON CONFLICT(workspace,key) DO NOTHING;
+ON CONFLICT(workspace_id,key) DO NOTHING;
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA private FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION private.member_role(uuid),private.can_write(uuid),private.is_admin(uuid),private.is_developer(),private.founder_identity_ok(uuid,uuid),private.create_invitation(uuid,text,text,text),private.accept_invitation(text),private.manage_member(uuid,uuid,text),private.revoke_invitation(uuid) TO authenticated;
