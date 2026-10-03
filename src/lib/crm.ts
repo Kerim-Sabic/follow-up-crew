@@ -162,6 +162,18 @@ export function leadStage(lead: Pick<Lead, "stage" | "status">) {
 /** UUID workspace scope column (stage-1 rollout); the legacy `workspace` label column belongs to the old app. */
 const SCOPE = "workspace_id" as never;
 
+const LEGACY_LABELS: Record<string, "docmesker" | "justin"> = {
+  "00000000-0000-4000-8000-000000000001": "docmesker",
+  "00000000-0000-4000-8000-000000000002": "justin",
+};
+/** The live database still serves the old app via the `workspace` label, so writes must carry the
+ * matching label. Workspaces without a label stay read-only until the access cutover. */
+export function legacyLabel(workspace: string): "docmesker" | "justin" {
+  const label = LEGACY_LABELS[workspace];
+  if (!label) throw new Error("Adding records to this workspace opens after the access cutover.");
+  return label;
+}
+
 export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
   const { data, error } = await supabase
     .from("lead_stages")
@@ -189,6 +201,7 @@ export async function createStage(
     .from("lead_stages")
     .insert({
       workspace_id: workspace,
+      workspace: legacyLabel(workspace),
       key: stageKey(input.label),
       label: input.label.trim(),
       color: input.color,
@@ -300,6 +313,7 @@ export async function createLead(
     .insert({
       number: start,
       workspace_id: workspace,
+      workspace: legacyLabel(workspace),
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
@@ -325,6 +339,7 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
     return {
       number: start + index,
       workspace_id: workspace,
+      workspace: legacyLabel(workspace),
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,

@@ -1,3 +1,4 @@
+import { legacyLabel } from "./crm";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -186,6 +187,7 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
         await settleMail(context.userId, data.workspace, reservation, result.id);
         const { error: persistError } = await supabaseAdmin.from("email_messages").insert({
           workspace_id: data.workspace,
+          workspace: legacyLabel(data.workspace),
           lead_id: message.leadId,
           mail_account_id: account.id,
           user_id: context.userId,
@@ -275,6 +277,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
             : new Date(Number(message.internalDate ?? Date.now()));
           const { error: insertError } = await supabaseAdmin.from("email_messages").insert({
             workspace_id: meta.workspace,
+            workspace: legacyLabel(meta.workspace),
             lead_id: meta.leadId,
             mail_account_id: account.id,
             user_id: context.userId,
@@ -382,6 +385,7 @@ export const replyToThread = createServerFn({ method: "POST" })
 
     await supabaseAdmin.from("email_messages").insert({
       workspace_id: incomingScope,
+      workspace: legacyLabel(incomingScope),
       lead_id: incoming.lead_id,
       mail_account_id: account.id,
       user_id: context.userId,
