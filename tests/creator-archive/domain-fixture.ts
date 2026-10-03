@@ -1,4 +1,4 @@
-import { missionSchema, observationSchema } from "../src/lib/mission-domain";
+import { missionSchema, observationSchema } from "../../src/lib/mission-domain";
 export const spec = missionSchema.parse({
   version: 1,
   objective: "FIXTURE cooking educators only",

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { GmailMessage, GmailThread, GmailSendResult } from "@/server/mail-message";
 
 export type Mailbox = {
   id: string;
@@ -15,7 +16,10 @@ function returnUrl() {
   if (!request) throw new Error("OAuth must start from an app request.");
   const url = new URL(request.url);
   const sandboxHost = url.hostname === "localhost" ? request.headers.get("x-forwarded-host") : null;
-  return new URL("/oauth/google-mail/return", sandboxHost ? `https://${sandboxHost}` : url.origin).toString();
+  return new URL(
+    "/oauth/google-mail/return",
+    sandboxHost ? `https://${sandboxHost}` : url.origin,
+  ).toString();
 }
 
 export const listMailboxes = createServerFn({ method: "GET" })
@@ -88,12 +92,15 @@ export const completeMailboxConnect = createServerFn({ method: "POST" })
     const account = await getAccount(context.userId, data.mailboxId);
     if (!account) throw new Error("Mailbox not found.");
 
-    const { connectionAPIKey, connectorId } = await exchangeAppUserOAuthCode(GATEWAY_BASE_URL, data.code);
+    const { connectionAPIKey, connectorId } = await exchangeAppUserOAuthCode(
+      GATEWAY_BASE_URL,
+      data.code,
+    );
     if (connectorId !== CONNECTOR_ID) throw new Error("Connection returned the wrong provider.");
     await saveConnectionKey(account.id, connectionAPIKey);
 
     const fresh = await getAccount(context.userId, account.id);
-    const profile = await gmail(fresh!, "/gmail/v1/users/me/profile");
+    const profile = await gmail<{ emailAddress?: string }>(fresh!, "/gmail/v1/users/me/profile");
     const email = profile?.emailAddress as string | undefined;
     if (email) {
       const duplicates = (await listAccounts(context.userId)).filter(
@@ -157,7 +164,7 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
           subject: message.subject,
           body: message.body,
         });
-        const result = await gmail(account, "/gmail/v1/users/me/messages/send", {
+        const result = await gmail<GmailSendResult>(account, "/gmail/v1/users/me/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ raw }),
@@ -169,7 +176,7 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
           user_id: context.userId,
           direction: "out",
           gmail_message_id: result.id,
-          gmail_thread_id: result.threadId,
+          gmail_thread_id: result.threadId ?? null,
           from_email: account.email,
           to_email: message.to,
           subject: message.subject,
@@ -189,10 +196,13 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
 export const syncMailboxes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { listAccounts, gmail, headerOf, plainTextOf } = await import("@/server/mailAccounts.server");
+    const { listAccounts, gmail, headerOf, plainTextOf } =
+      await import("@/server/mailAccounts.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const accounts = (await listAccounts(context.userId)).filter((a) => a.connection_key_ciphertext);
+    const accounts = (await listAccounts(context.userId)).filter(
+      (a) => a.connection_key_ciphertext,
+    );
     let newReplies = 0;
 
     for (const account of accounts) {
@@ -218,20 +228,26 @@ export const syncMailboxes = createServerFn({ method: "POST" })
       const knownIds = new Set((known ?? []).map((row) => row.gmail_message_id));
 
       for (const [threadId, meta] of Array.from(threads).slice(0, 80)) {
-        let thread: any;
+        let thread: GmailThread;
         try {
-          thread = await gmail(account, `/gmail/v1/users/me/threads/${threadId}?format=full`);
+          thread = await gmail<GmailThread>(
+            account,
+            `/gmail/v1/users/me/threads/${threadId}?format=full`,
+          );
         } catch (error) {
           if ((error as Error).message === "RECONNECT_REQUIRED") break;
           continue;
         }
         for (const message of thread?.messages ?? []) {
-          if (knownIds.has(message.id)) continue;
+          if (!message.id || knownIds.has(message.id)) continue;
           const from = headerOf(message, "From");
-          const isFromMe = account.email && from.toLowerCase().includes(account.email.toLowerCase());
+          const isFromMe =
+            account.email && from.toLowerCase().includes(account.email.toLowerCase());
           if (isFromMe) continue;
           const dateHeader = headerOf(message, "Date");
-          const sentAt = dateHeader ? new Date(dateHeader) : new Date(Number(message.internalDate ?? Date.now()));
+          const sentAt = dateHeader
+            ? new Date(dateHeader)
+            : new Date(Number(message.internalDate ?? Date.now()));
           await supabaseAdmin.from("email_messages").insert({
             workspace: meta.workspace as "docmesker" | "justin",
             lead_id: meta.leadId,
@@ -278,7 +294,8 @@ export const replyToThread = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { messageId: string; body: string }) => input)
   .handler(async ({ data, context }) => {
-    const { getAccount, gmail, buildRawEmail, headerOf } = await import("@/server/mailAccounts.server");
+    const { getAccount, gmail, buildRawEmail, headerOf } =
+      await import("@/server/mailAccounts.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: incoming } = await supabaseAdmin
@@ -291,7 +308,10 @@ export const replyToThread = createServerFn({ method: "POST" })
     if (!account) throw new Error("That reply belongs to another teammate's mailbox.");
 
     const original = incoming.gmail_message_id
-      ? await gmail(account, `/gmail/v1/users/me/messages/${incoming.gmail_message_id}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject&metadataHeaders=From`)
+      ? await gmail<GmailMessage>(
+          account,
+          `/gmail/v1/users/me/messages/${incoming.gmail_message_id}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject&metadataHeaders=From`,
+        )
       : null;
     const messageIdHeader = original ? headerOf(original, "Message-ID") : "";
     const subject = incoming.subject?.toLowerCase().startsWith("re:")
@@ -307,7 +327,7 @@ export const replyToThread = createServerFn({ method: "POST" })
       inReplyTo: messageIdHeader || null,
       references: original ? headerOf(original, "References") || messageIdHeader : null,
     });
-    const result = await gmail(account, "/gmail/v1/users/me/messages/send", {
+    const result = await gmail<GmailSendResult>(account, "/gmail/v1/users/me/messages/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ raw, threadId: incoming.gmail_thread_id }),
@@ -320,7 +340,7 @@ export const replyToThread = createServerFn({ method: "POST" })
       user_id: context.userId,
       direction: "out",
       gmail_message_id: result.id,
-      gmail_thread_id: result.threadId,
+      gmail_thread_id: result.threadId ?? null,
       from_email: account.email,
       to_email: to,
       subject,
@@ -338,8 +358,11 @@ export const markReplyRead = createServerFn({ method: "POST" })
   .inputValidator((input: { messageId: string }) => input)
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("email_messages")
-      .update({ is_read: true }).eq("id", data.messageId).eq("user_id", context.userId);
+    const { error } = await supabaseAdmin
+      .from("email_messages")
+      .update({ is_read: true })
+      .eq("id", data.messageId)
+      .eq("user_id", context.userId);
     if (error) throw error;
     return { ok: true };
   });

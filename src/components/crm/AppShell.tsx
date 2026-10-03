@@ -37,7 +37,7 @@ const groups = [
 export function AppShell() {
   const { user } = useAuth();
   if (!user) return null;
-  return <WorkspaceProvider userId={user.id}><ShellContent /></WorkspaceProvider>;
+  return <WorkspaceProvider key={user.id} userId={user.id}><ShellContent /></WorkspaceProvider>;
 }
 
 function ShellContent() {

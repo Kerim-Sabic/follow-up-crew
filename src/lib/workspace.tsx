@@ -68,7 +68,8 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
       leadsTimer = setTimeout(() => queryClient.invalidateQueries({ queryKey: ["leads"] }), 1500);
     };
     const channel = supabase
-      .channel("crm-live")
+      // A remount must not reuse a channel whose previous cleanup is still pending.
+      .channel(`crm-live:${userId}:${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, refetchLeads)
       .on("postgres_changes", { event: "*", schema: "public", table: "lead_notes" }, () => {
         queryClient.invalidateQueries({ queryKey: ["lead-notes"] });
@@ -84,7 +85,7 @@ export function WorkspaceProvider({ userId, children }: { userId: string; childr
       if (leadsTimer) clearTimeout(leadsTimer);
       void supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, userId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
