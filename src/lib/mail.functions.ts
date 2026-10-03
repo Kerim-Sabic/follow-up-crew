@@ -185,7 +185,7 @@ export const sendLeadEmails = createServerFn({ method: "POST" })
           );
         await settleMail(context.userId, data.workspace, reservation, result.id);
         const { error: persistError } = await supabaseAdmin.from("email_messages").insert({
-          workspace: data.workspace as never,
+          workspace_id: data.workspace,
           lead_id: message.leadId,
           mail_account_id: account.id,
           user_id: context.userId,
@@ -227,7 +227,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
     for (const account of accounts) {
       const { data: outgoing } = await context.supabase
         .from("email_messages")
-        .select("gmail_thread_id, lead_id, workspace")
+        .select("gmail_thread_id, lead_id, workspace_id" as "gmail_thread_id, lead_id, workspace")
         .eq("mail_account_id", account.id)
         .eq("direction", "out")
         .order("sent_at", { ascending: false })
@@ -236,7 +236,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
       const threads = new Map<string, { leadId: string | null; workspace: string }>();
       for (const row of outgoing ?? []) {
         if (row.gmail_thread_id && !threads.has(row.gmail_thread_id)) {
-          threads.set(row.gmail_thread_id, { leadId: row.lead_id, workspace: row.workspace });
+          threads.set(row.gmail_thread_id, { leadId: row.lead_id, workspace: (row as unknown as { workspace_id: string }).workspace_id });
         }
       }
 
@@ -251,7 +251,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
         const { data: authorizedLead } = await context.supabase
           .from("leads")
           .select("id")
-          .eq("workspace", meta.workspace as never)
+          .eq("workspace_id" as never, meta.workspace as never)
           .eq("id", meta.leadId)
           .maybeSingle();
         if (!authorizedLead) continue;
@@ -274,7 +274,7 @@ export const syncMailboxes = createServerFn({ method: "POST" })
             ? new Date(dateHeader)
             : new Date(Number(message.internalDate ?? Date.now()));
           const { error: insertError } = await supabaseAdmin.from("email_messages").insert({
-            workspace: meta.workspace as never,
+            workspace_id: meta.workspace,
             lead_id: meta.leadId,
             mail_account_id: account.id,
             user_id: context.userId,
@@ -295,14 +295,14 @@ export const syncMailboxes = createServerFn({ method: "POST" })
             const { data: lead } = await supabaseAdmin
               .from("leads")
               .select("stage")
-              .eq("workspace", meta.workspace as never)
+              .eq("workspace_id" as never, meta.workspace as never)
               .eq("id", meta.leadId)
               .maybeSingle();
             if (lead && (lead.stage === "not_contacted" || lead.stage === "contacted")) {
               await supabaseAdmin
                 .from("leads")
                 .update({ stage: "replied", last_touched_at: new Date().toISOString() })
-                .eq("workspace", meta.workspace as never)
+                .eq("workspace_id" as never, meta.workspace as never)
                 .eq("id", meta.leadId);
             }
           }
@@ -380,7 +380,7 @@ export const replyToThread = createServerFn({ method: "POST" })
     await settleMail(context.userId, incoming.workspace, reservation, result.id);
 
     await supabaseAdmin.from("email_messages").insert({
-      workspace: incoming.workspace,
+      workspace_id: incoming.workspace,
       lead_id: incoming.lead_id,
       mail_account_id: account.id,
       user_id: context.userId,
@@ -406,7 +406,7 @@ export const markReplyRead = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: readable, error } = await context.supabase
       .from("email_messages")
-      .select("id,workspace")
+      .select("id,workspace_id" as "id,workspace")
       .eq("id", data.messageId)
       .maybeSingle();
     if (error || !readable) throw new Error("Message unavailable in your authorized mailbox.");
@@ -414,7 +414,7 @@ export const markReplyRead = createServerFn({ method: "POST" })
       .from("email_messages")
       .update({ is_read: true })
       .eq("id", readable.id)
-      .eq("workspace", readable.workspace)
+      .eq("workspace_id" as never, (readable as unknown as { workspace_id: string }).workspace_id as never)
       .eq("user_id", context.userId);
     return { ok: true };
   });

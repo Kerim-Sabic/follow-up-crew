@@ -159,11 +159,14 @@ export function leadStage(lead: Pick<Lead, "stage" | "status">) {
   return lead.stage ?? lead.status;
 }
 
+/** UUID workspace scope column (stage-1 rollout); the legacy `workspace` label column belongs to the old app. */
+const SCOPE = "workspace_id" as never;
+
 export async function fetchStages(workspace: Workspace): Promise<Stage[]> {
   const { data, error } = await supabase
     .from("lead_stages")
     .select("*")
-    .eq("workspace", workspace as never)
+    .eq(SCOPE, workspace as never)
     .order("position", { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -185,7 +188,7 @@ export async function createStage(
   const { data, error } = await supabase
     .from("lead_stages")
     .insert({
-      workspace: workspace as never,
+      workspace_id: workspace,
       key: stageKey(input.label),
       label: input.label.trim(),
       color: input.color,
@@ -219,7 +222,7 @@ export async function deleteStage(stage: Stage) {
   const { error: moveError } = await supabase
     .from("leads")
     .update({ stage: "not_contacted" })
-    .eq("workspace", stage.workspace)
+    .eq(SCOPE, (stage as unknown as { workspace_id: string }).workspace_id as never)
     .eq("stage", stage.key);
   if (moveError) throw moveError;
   const { error } = await supabase.from("lead_stages").delete().eq("id", stage.id);
@@ -230,7 +233,7 @@ export async function fetchLeads(workspace: Workspace): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("leads")
     .select("*")
-    .eq("workspace", workspace as never)
+    .eq(SCOPE, workspace as never)
     .order("id")
     .limit(100);
   if (error) throw error;
@@ -277,7 +280,7 @@ async function nextNumber(workspace: Workspace) {
   const { data } = await supabase
     .from("leads")
     .select("number")
-    .eq("workspace", workspace as never)
+    .eq(SCOPE, workspace as never)
     .order("number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -296,7 +299,7 @@ export async function createLead(
     .from("leads")
     .insert({
       number: start,
-      workspace: workspace as never,
+      workspace_id: workspace,
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
@@ -321,7 +324,7 @@ export async function createLeads(inputs: NewLeadInput[], workspace: Workspace):
     const username = input.username.trim().replace(/^@/, "");
     return {
       number: start + index,
-      workspace,
+      workspace_id: workspace,
       username,
       email: input.email?.trim() || null,
       full_name: input.full_name?.trim() || null,
