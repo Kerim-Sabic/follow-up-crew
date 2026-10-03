@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
-import { database } from "./database-fixture";
+import { database } from "../database-fixture";
 import {
   executeCommand,
   runWorkerUnit,
   readSharedProposal,
-} from "../src/server/creator-service.server";
-import { creatorDb, withWorkspace } from "../src/server/creator-db.server";
+} from "../../src/server/creator-service.server";
+import { creatorDb, withWorkspace } from "../../src/server/creator-db.server";
 import { spec, observed } from "./domain-fixture";
-import { genericDraft, type Observation } from "../src/lib/mission-domain";
-import { analyzeOpportunity, discoverBrave } from "../src/server/creator-providers.server";
+import { genericDraft, type Observation } from "../../src/lib/mission-domain";
+import { analyzeOpportunity, discoverBrave } from "../../src/server/creator-providers.server";
 
 test("complete imported mission through production services, durable worker, approval, changed evidence, budget attempts and tenant denial", async (t) => {
   const db = await database(true);

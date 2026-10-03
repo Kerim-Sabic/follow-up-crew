@@ -10,10 +10,10 @@ import {
   usageCost,
   parseCsv,
   compileBrief,
-} from "../src/lib/mission-domain";
+} from "../../src/lib/mission-domain";
 const now = Date.parse("2026-09-29T12:00:00Z");
 import { spec, observed } from "./domain-fixture";
-import { projectMissionCost } from "../src/lib/mission-cost";
+import { projectMissionCost } from "../../src/lib/mission-cost";
 test("hard filters never accept missing, rounded, partial, stale, contradictory or search-only evidence", () => {
   assert.equal(qualify(spec, observed, now).status, "passed");
   for (const patch of [
