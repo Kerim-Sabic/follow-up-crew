@@ -115,8 +115,8 @@ GRANT EXECUTE ON FUNCTION public.lead_page(uuid,text,text,text,text,uuid,integer
 -- Atomic assignment: no teammate can overwrite another teammate's claim via ordinary edits.
 CREATE FUNCTION private.guard_assignment() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
 BEGIN
- IF auth.uid() IS NOT NULL THEN
- IF NEW.owner_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.workspace_members WHERE workspace=NEW.workspace AND user_id=NEW.owner_id)
+ IF auth.uid() IS NOT NULL AND NOT private.legacy_open() THEN
+ IF NEW.owner_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.workspace_members WHERE workspace=NEW.workspace_id AND user_id=NEW.owner_id)
  THEN RAISE EXCEPTION 'Assignee is not a member'; END IF;
  IF TG_OP='UPDATE' AND OLD.owner_id IS NOT NULL AND OLD.owner_id IS DISTINCT FROM NEW.owner_id AND OLD.owner_id<>auth.uid()
  THEN RAISE EXCEPTION 'Lead already claimed; current owner must release it'; END IF;
